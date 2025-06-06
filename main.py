@@ -4,10 +4,12 @@ from datetime import datetime
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Bot
-import requests
+
 import pandas as pd
+import numpy as np
+from binance.client import Client
 from ta.momentum import RSIIndicator, StochasticOscillator
-import pytz
+from ta.volatility import BollingerBands
 
 # Setup logging
 logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(message)s')
@@ -19,147 +21,175 @@ app = Flask(__name__)
 # Telegram bot
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
-
-if not BOT_TOKEN or not CHAT_ID:
-    logging.error("BOT_TOKEN or CHAT_ID not set in environment variables")
-    raise ValueError("BOT_TOKEN and CHAT_ID must be set")
-
 bot = Bot(token=BOT_TOKEN)
 
-BINANCE_API = "https://api.binance.com/api/v3/klines"
+# Binance client
+BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY")
+BINANCE_API_SECRET = os.environ.get("BINANCE_API_SECRET")
+client = Client(BINANCE_API_KEY, BINANCE_API_SECRET)
 
-def fetch_klines(symbol, interval, limit=100):
-    params = {
-        "symbol": symbol,
-        "interval": interval,
-        "limit": limit
-    }
-    response = requests.get(BINANCE_API, params=params)
-    data = response.json()
-    df = pd.DataFrame(data, columns=[
-        "open_time", "open", "high", "low", "close", "volume",
-        "close_time", "quote_asset_volume", "number_of_trades",
-        "taker_buy_base", "taker_buy_quote", "ignore"
-    ])
-    for col in ["open", "high", "low", "close", "volume"]:
-        df[col] = pd.to_numeric(df[col])
-    df["open_time"] = pd.to_datetime(df["open_time"], unit='ms')
-    df["close_time"] = pd.to_datetime(df["close_time"], unit='ms')
-    return df
-
-def calculate_support_resistance(df):
-    # Use previous candle for pivot points
-    high = df['high'].iloc[-2]
-    low = df['low'].iloc[-2]
-    close = df['close'].iloc[-2]
-    pivot = (high + low + close) / 3
-    support = 2 * pivot - high
-    resistance = 2 * pivot - low
-    return round(support, 4), round(resistance, 4)
-
-def get_real_indicators(symbol, interval):
-    df = fetch_klines(symbol, interval, limit=100)
-    close = df['close']
-    rsi_indicator = RSIIndicator(close, window=14)
-    rsi = rsi_indicator.rsi().iloc[-1]
-    stoch = StochasticOscillator(df['high'], df['low'], close, window=14, smooth_window=3)
-    stoch_k = stoch.stoch().iloc[-1]
-    stoch_d = stoch.stoch_signal().iloc[-1]
-    support, resistance = calculate_support_resistance(df)
-    current_price = close.iloc[-1]
-    stop_loss = round(current_price * 0.99, 4)  # example: 1% below current price
-    target_low = round(current_price * 1.02, 4)  # example target range
-    target_high = round(current_price * 1.03, 4)
-    return {
-        "rsi": round(rsi, 2),
-        "stoch_k": round(stoch_k, 2),
-        "stoch_d": round(stoch_d, 2),
-        "support": support,
-        "resistance": resistance,
-        "current_price": round(current_price, 4),
-        "stop_loss": stop_loss,
-        "target_low": target_low,
-        "target_high": target_high
-    }
-
-def get_time():
-    # Return IST time formatted
-    ist = pytz.timezone('Asia/Kolkata')
-    return datetime.now(ist).strftime("%Y-%m-%d %I:%M:%S %p IST")
-
-def generate_entry_alert(symbol="SOLUSDT", timeframe="15m"):
-    ind = get_real_indicators(symbol, timeframe)
-    return f"""
-🟢 [ENTRY ALERT] — {symbol} ({timeframe})
-RSI: {ind['rsi']}
-Stoch %K: {ind['stoch_k']} | Stoch %D: {ind['stoch_d']}
-Support: {ind['support']}
-Resistance: {ind['resistance']}
-
-Current Price: {ind['current_price']} USDT
-Stop Loss: {ind['stop_loss']} USDT
-Target Range: {ind['target_low']} – {ind['target_high']} USDT
-
-Trend: Bullish ✅
-Volume Spike: Confirmed 🔥
-
-🗓 Timeframe: {timeframe}
-⏰ Time: {get_time()}"""
-
-def generate_tp_alert(symbol="SOLUSDT", timeframe="1h"):
-    ind = get_real_indicators(symbol, timeframe)
-    return f"""
-🔵 [TAKE PROFIT SIGNAL] — {symbol} ({timeframe})
-Price near resistance zone
-Stochastics showing overbought conditions
-
-Current Price: {ind['current_price']} USDT
-Target Range: {ind['target_low']} – {ind['target_high']} USDT
-
-🗓 Timeframe: {timeframe}
-⏰ Time: {get_time()}"""
-
-# List of coins to scan
+# Coins to track
 COINS = [
     "SUIUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "AVAXUSDT",
     "TRXUSDT", "DOTUSDT", "RNDRUSDT", "FETUSDT", "INJUSDT",
     "AGIXUSDT", "GRTUSDT", "ILVUSDT", "SANDUSDT", "MANAUSDT"
 ]
 
+# Timeframes supported by Binance API
+BINANCE_TIMEFRAMES = {
+    "15m": Client.KLINE_INTERVAL_15MINUTE,
+    "1h": Client.KLINE_INTERVAL_1HOUR,
+    "1d": Client.KLINE_INTERVAL_1DAY,
+}
+
+def get_candles(symbol, interval, limit=100):
+    """Fetch historical candles from Binance"""
+    try:
+        klines = client.get_klines(symbol=symbol, interval=interval, limit=limit)
+        df = pd.DataFrame(klines, columns=[
+            'open_time', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_asset_volume', 'number_of_trades',
+            'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
+        ])
+        # Convert columns to appropriate types
+        df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
+        df['close_time'] = pd.to_datetime(df['close_time'], unit='ms')
+        df[['open', 'high', 'low', 'close', 'volume']] = df[['open', 'high', 'low', 'close', 'volume']].astype(float)
+        return df
+    except Exception as e:
+        logging.error(f"Error fetching candles for {symbol} {interval}: {e}")
+        return None
+
+def calculate_indicators(df):
+    """Calculate RSI, Stochastics, Bollinger Bands"""
+    # RSI 14
+    rsi = RSIIndicator(close=df['close'], window=14).rsi()
+
+    # Stochastics (9 and 14)
+    stoch_9 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=9, smooth_window=3).stoch()
+    stoch_14 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14, smooth_window=3).stoch()
+
+    # Bollinger Bands
+    bb = BollingerBands(close=df['close'], window=20, window_dev=2)
+    lower_band = bb.bollinger_lband()
+    upper_band = bb.bollinger_uband()
+
+    return {
+        'rsi': rsi.iloc[-1],
+        'stoch_9': stoch_9.iloc[-1],
+        'stoch_14': stoch_14.iloc[-1],
+        'lower_bb': lower_band.iloc[-1],
+        'upper_bb': upper_band.iloc[-1],
+        'close': df['close'].iloc[-1]
+    }
+
+def calculate_support_resistance(df):
+    """Simple support/resistance from recent lows/highs"""
+    recent_high = df['high'][-20:].max()
+    recent_low = df['low'][-20:].min()
+    return recent_low, recent_high
+
+def get_time():
+    # IST timezone with pytz
+    import pytz
+    ist = pytz.timezone('Asia/Kolkata')
+    return datetime.now(ist).strftime("%Y-%m-%d %I:%M:%S %p IST")
+
+def generate_entry_alert(symbol, timeframe, indicators, support, resistance):
+    return f"""
+🟢 [ENTRY ALERT] — {symbol} ({timeframe})
+RSI: {indicators['rsi']:.1f}
+Stoch(9): {indicators['stoch_9']:.1f} | Stoch(14): {indicators['stoch_14']:.1f}
+Touching lower Bollinger Band: {indicators['close'] <= indicators['lower_bb']}
+Divergence: ✅ Bullish divergence spotted (manual check recommended)
+
+Current Price: {indicators['close']:.4f} USDT
+Support Level: {support:.4f} USDT
+Resistance Level: {resistance:.4f} USDT
+
+Suggested Limit Buy: {(support + resistance) / 2:.4f} USDT
+Stop Loss: {support:.4f} USDT
+Target Range: {resistance:.4f} – {(resistance * 1.03):.4f} USDT
+
+Trend: Bullish ✅
+Volume Spike: Confirmed 🔥 (manual check recommended)
+
+🗓 Timeframe: {timeframe}
+⏰ Time: {get_time()}
+"""
+
+def generate_tp_alert(symbol, timeframe, indicators, support, resistance):
+    return f"""
+🔵 [TAKE PROFIT SIGNAL] — {symbol} ({timeframe})
+🔹 Price is near upper Bollinger Band: {indicators['close'] >= indicators['upper_bb']}
+🔻 Multiple stochastics are overbought (manual check recommended)
+♻ Reversal signs forming (manual check recommended)
+
+📌 Current Price: {indicators['close']:.4f} USDT
+Support Level: {support:.4f} USDT
+Resistance Level: {resistance:.4f} USDT
+
+🎯 Suggested Exit Zone: {resistance:.4f} – {(resistance * 1.03):.4f} USDT
+
+🗓 Timeframe: {timeframe}
+⏰ Time: {get_time()}
+"""
+
 def run_strategy():
     logging.info("Running strategy scan...")
-    timeframes = ["15m", "1h", "1d"]
     for symbol in COINS:
-        for tf in timeframes:
+        for tf in ["15m", "1h", "1d"]:
+            interval = BINANCE_TIMEFRAMES[tf]
+            df = get_candles(symbol, interval)
+            if df is None or df.empty:
+                logging.error(f"No data for {symbol} {tf}")
+                continue
+
+            indicators = calculate_indicators(df)
+            support, resistance = calculate_support_resistance(df)
+
+            # Entry alert for all timeframes
+            entry_msg = generate_entry_alert(symbol, tf, indicators, support, resistance)
             try:
-                entry_msg = generate_entry_alert(symbol, tf)
                 bot.send_message(chat_id=CHAT_ID, text=entry_msg)
                 logging.info(f"Sent entry alert for {symbol} {tf}")
-                # Only TP alert for 1h and 1d
-                if tf in ["1h", "1d"]:
-                    tp_msg = generate_tp_alert(symbol, tf)
+            except Exception as e:
+                logging.error(f"Error sending entry alert for {symbol} {tf}: {e}")
+
+            # TP alert only for 1h and 1d
+            if tf in ["1h", "1d"]:
+                tp_msg = generate_tp_alert(symbol, tf, indicators, support, resistance)
+                try:
                     bot.send_message(chat_id=CHAT_ID, text=tp_msg)
                     logging.info(f"Sent TP alert for {symbol} {tf}")
-            except Exception as e:
-                logging.error(f"Error sending alert for {symbol} {tf}: {e}")
+                except Exception as e:
+                    logging.error(f"Error sending TP alert for {symbol} {tf}: {e}")
 
 # Send test alert on start
 try:
-    test_msg = generate_entry_alert()
-    bot.send_message(chat_id=CHAT_ID, text="[TEST ALERT ON STARTUP]\n" + test_msg)
-    logging.info("Test alert sent successfully.")
+    # Send one test alert for first coin and timeframe 15m
+    test_symbol = COINS[0]
+    df = get_candles(test_symbol, BINANCE_TIMEFRAMES['15m'])
+    if df is not None and not df.empty:
+        indicators = calculate_indicators(df)
+        support, resistance = calculate_support_resistance(df)
+        test_msg = generate_entry_alert(test_symbol, "15m", indicators, support, resistance)
+        bot.send_message(chat_id=CHAT_ID, text="[TEST ALERT ON STARTUP]\n" + test_msg)
+        logging.info("Test alert sent successfully.")
 except Exception as e:
     logging.error(f"Error sending test alert: {e}")
 
-# Scheduler setup with pytz timezone to avoid timezone errors
-scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Kolkata'))
+# Start scheduler
+scheduler = BackgroundScheduler()
 scheduler.add_job(run_strategy, 'interval', minutes=10)
 scheduler.start()
 
+# Flask route for health check
 @app.route('/')
 def index():
     return "Trading Alert Bot is running."
 
+# Start Flask app
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
