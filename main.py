@@ -4,7 +4,7 @@ from datetime import datetime
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Bot
-
+import pytz
 import random
 
 # Setup logging
@@ -18,6 +18,9 @@ app = Flask(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 bot = Bot(token=BOT_TOKEN)
+
+# Define IST timezone using pytz
+IST = pytz.timezone('Asia/Kolkata')
 
 # Dummy function to simulate indicator values
 def get_fake_indicators():
@@ -34,9 +37,9 @@ def get_fake_indicators():
         "target_high": round(random.uniform(153.0, 154.5), 2)
     }
 
-# Time formatter
+# Time formatter using pytz-aware datetime
 def get_time():
-    return datetime.now().strftime("%Y-%m-%d %I:%M:%S %p IST")
+    return datetime.now(IST).strftime("%Y-%m-%d %I:%M:%S %p IST")
 
 # Buy alert message
 def generate_entry_alert(symbol="SOLUSDT", timeframe="15m"):
@@ -76,7 +79,6 @@ def generate_tp_alert(symbol="SOLUSDT", timeframe="15m"):
 ⏰ Time: {get_time()}"""
 
 # Strategy logic
-
 def run_strategy():
     logging.info("Running strategy scan...")
     timeframes = ["15m", "1h", "1d"]
@@ -99,8 +101,8 @@ try:
 except Exception as e:
     logging.error(f"Error sending test alert: {e}")
 
-# Start scheduler
-scheduler = BackgroundScheduler()
+# Start scheduler with pytz timezone
+scheduler = BackgroundScheduler(timezone=IST)
 scheduler.add_job(run_strategy, 'interval', minutes=10)
 scheduler.start()
 
