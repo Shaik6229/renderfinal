@@ -180,7 +180,7 @@ def run_strategy():
 
             except Exception as e:
                 logging.error(f"Error processing {symbol} {interval}: {str(e)}")
-
+                
 # Initial test alert
 try:
     test_data = analyze("SOLUSDT", "15m")
@@ -188,8 +188,13 @@ try:
         test_msg = "[TEST ALERT]\n" + generate_entry_msg(test_data)
         bot.send_message(chat_id=CHAT_ID, text=test_msg)
         logging.info("Test alert sent.")
+        print("Test alert sent.")  # This will show in Render logs
+    else:
+        logging.info("No test data available for initial alert.")
+        print("No test data available for initial alert.")
 except Exception as e:
     logging.error(f"Test alert error: {e}")
+    print(f"Test alert error: {e}")
 
 # Scheduler
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Kolkata'))
