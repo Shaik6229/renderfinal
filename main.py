@@ -154,6 +154,23 @@ Support: {data['support']} | Resistance: {data['resistance']}
 📋 Timeframe: {data['interval']}
 ⏰ Time: {get_time()}"""
 
+# ✅ Put this BELOW generate_tp_msg — NOT inside it
+
+def generate_test_alert(data):
+    msg = f"🔎 [TEST ALERT] {data['symbol']} ({data['interval']})\n\n"
+    msg += f"Current Price: {data['price']} USDT\n\n"
+
+    if data['entry']:
+        msg += "Entry Status: ✅ Good to enter now!\n"
+        msg += "Explanation: RSI is low, price is touching lower Bollinger Band, and Stochastic is oversold. These indicators suggest a potential bounce up.\n"
+    else:
+        msg += "Entry Status: ❌ Better to wait!\n"
+        msg += "Explanation: RSI or other indicators do not currently suggest a good entry point.\n"
+
+    msg += f"\n⏰ Time: {get_time()}"
+    return msg
+
+
 # Strategy
 
 def run_strategy():
@@ -185,11 +202,11 @@ def run_strategy():
             except Exception as e:
                 logging.error(f"Error processing {symbol} {interval}: {str(e)}")
                 
-# Initial test alert
+# Improved test alert with entry analysis
 try:
     test_data = analyze("SOLUSDT", "15m")
     if test_data:
-        test_msg = "[TEST ALERT]\n" + generate_entry_msg(test_data)
+        test_msg = generate_test_alert(test_data)
         bot.send_message(chat_id=CHAT_ID, text=test_msg)
         logging.info("Test alert sent.")
         print("Test alert sent.")  # This will show in Render logs
@@ -199,6 +216,7 @@ try:
 except Exception as e:
     logging.error(f"Test alert error: {e}")
     print(f"Test alert error: {e}")
+
 
 # Scheduler
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Kolkata'))
