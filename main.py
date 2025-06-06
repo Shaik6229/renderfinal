@@ -45,7 +45,8 @@ def get_time():
 
 # Fetch OHLCV from Binance with error handling
 def fetch_ohlcv(symbol, interval, limit=100):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+    url = f"https://api.binance.us/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+
     try:
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
