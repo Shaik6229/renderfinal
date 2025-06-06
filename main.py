@@ -116,7 +116,7 @@ def analyze(symbol, interval):
 # Alert formatting
 
 def generate_entry_msg(data):
-    return f"""
+    msg = f"""
 🟢 [ENTRY ALERT] — {data['symbol']} ({data['interval']})
 RSI: {data['rsi']}
 Stochastic %K: {data['stoch_k']} | %D: {data['stoch_d']}
@@ -124,12 +124,19 @@ Price touching lower Bollinger Band: ✅
 
 Current Price: {data['price']} USDT
 Support: {data['support']} | Resistance: {data['resistance']}
+"""
+    # Add TP suggestion inside 15m entry alert only
+    if data['interval'] == "15m":
+        msg += f"Suggested Exit (TP) Price: {data['bb_upper']} USDT\n"
+
+    msg += f"""
 
 Trend: Bullish ✅
 Volume Spike: Possibly
 
 📋 Timeframe: {data['interval']}
 ⏰ Time: {get_time()}"""
+    return msg
 
 def generate_tp_msg(data):
     return f"""
@@ -178,7 +185,8 @@ def run_strategy():
 try:
     test_data = analyze("SOLUSDT", "15m")
     if test_data:
-        bot.send_message(chat_id=CHAT_ID, text="[TEST ALERT]\n" + generate_entry_msg(test_data))
+        test_msg = "[TEST ALERT]\n" + generate_entry_msg(test_data)
+        bot.send_message(chat_id=CHAT_ID, text=test_msg)
         logging.info("Test alert sent.")
 except Exception as e:
     logging.error(f"Test alert error: {e}")
