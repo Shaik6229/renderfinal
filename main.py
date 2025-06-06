@@ -4,7 +4,7 @@ from datetime import datetime
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Bot
-import pytz
+import pytz  # Ensure pytz is installed
 import random
 
 # Setup logging
@@ -17,10 +17,12 @@ app = Flask(__name__)
 # Telegram bot
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
-bot = Bot(token=BOT_TOKEN)
 
-# Define IST timezone using pytz
-IST = pytz.timezone('Asia/Kolkata')
+# Debug print environment variables
+print(f"BOT_TOKEN: {BOT_TOKEN}")
+print(f"CHAT_ID: {CHAT_ID}")
+
+bot = Bot(token=BOT_TOKEN)
 
 # Dummy function to simulate indicator values
 def get_fake_indicators():
@@ -37,9 +39,10 @@ def get_fake_indicators():
         "target_high": round(random.uniform(153.0, 154.5), 2)
     }
 
-# Time formatter using pytz-aware datetime
+# Time formatter with pytz timezone for IST
 def get_time():
-    return datetime.now(IST).strftime("%Y-%m-%d %I:%M:%S %p IST")
+    ist = pytz.timezone('Asia/Kolkata')
+    return datetime.now(ist).strftime("%Y-%m-%d %I:%M:%S %p IST")
 
 # Buy alert message
 def generate_entry_alert(symbol="SOLUSDT", timeframe="15m"):
@@ -84,25 +87,35 @@ def run_strategy():
     timeframes = ["15m", "1h", "1d"]
     for tf in timeframes:
         entry_msg = generate_entry_alert(timeframe=tf)
-        bot.send_message(chat_id=CHAT_ID, text=entry_msg)
-        logging.info(f"Sent entry alert for {tf}")
-        
+        try:
+            bot.send_message(chat_id=CHAT_ID, text=entry_msg)
+            logging.info(f"Sent entry alert for {tf}")
+        except Exception as e:
+            logging.error(f"Error sending entry alert for {tf}: {e}")
+            print(f"Error sending entry alert for {tf}: {e}")
+
         # Only TP alert for 1h and 1d
         if tf in ["1h", "1d"]:
             tp_msg = generate_tp_alert(timeframe=tf)
-            bot.send_message(chat_id=CHAT_ID, text=tp_msg)
-            logging.info(f"Sent TP alert for {tf}")
+            try:
+                bot.send_message(chat_id=CHAT_ID, text=tp_msg)
+                logging.info(f"Sent TP alert for {tf}")
+            except Exception as e:
+                logging.error(f"Error sending TP alert for {tf}: {e}")
+                print(f"Error sending TP alert for {tf}: {e}")
 
-# Send test alert on start
+# Send test alert on start with exception handling
 try:
     test_msg = generate_entry_alert()
     bot.send_message(chat_id=CHAT_ID, text="[TEST ALERT ON STARTUP]\n" + test_msg)
     logging.info("Test alert sent successfully.")
+    print("Test alert sent successfully.")
 except Exception as e:
     logging.error(f"Error sending test alert: {e}")
+    print(f"Error sending test alert: {e}")
 
-# Start scheduler with pytz timezone
-scheduler = BackgroundScheduler(timezone=IST)
+# Start scheduler
+scheduler = BackgroundScheduler()
 scheduler.add_job(run_strategy, 'interval', minutes=10)
 scheduler.start()
 
