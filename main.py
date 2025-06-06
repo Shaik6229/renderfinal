@@ -205,7 +205,7 @@ def run_strategy():
                 
 # Improved test alert with entry analysis
 try:
-    test_data = analyze("SOLUSDT", "15m")
+    test_data = analyze("BTCUSDT", "15m")
     if test_data:
         test_msg = generate_test_alert(test_data)
         bot.send_message(chat_id=CHAT_ID, text=test_msg)
