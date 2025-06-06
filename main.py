@@ -4,8 +4,8 @@ from datetime import datetime
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Bot
-import pytz
 import random
+import pytz  # Ensure pytz is installed and added to requirements.txt
 
 # Setup logging
 logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(message)s')
@@ -18,6 +18,13 @@ app = Flask(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 bot = Bot(token=BOT_TOKEN)
+
+# List of coins for alerts
+COINS = [
+    "SUIUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "AVAXUSDT",
+    "TRXUSDT", "DOTUSDT", "RNDRUSDT", "FETUSDT", "INJUSDT",
+    "AGIXUSDT", "GRTUSDT", "ILVUSDT", "SANDUSDT", "MANAUSDT"
+]
 
 # Dummy function to simulate indicator values
 def get_fake_indicators():
@@ -34,11 +41,10 @@ def get_fake_indicators():
         "target_high": round(random.uniform(153.0, 154.5), 2)
     }
 
-# Time formatter - using pytz timezone explicitly
-IST = pytz.timezone('Asia/Kolkata')
-
+# Time formatter with pytz timezone set to IST
 def get_time():
-    return datetime.now(IST).strftime("%Y-%m-%d %I:%M:%S %p IST")
+    ist = pytz.timezone('Asia/Kolkata')
+    return datetime.now(ist).strftime("%Y-%m-%d %I:%M:%S %p IST")
 
 # Buy alert message
 def generate_entry_alert(symbol="SOLUSDT", timeframe="15m"):
@@ -81,16 +87,23 @@ def generate_tp_alert(symbol="SOLUSDT", timeframe="15m"):
 def run_strategy():
     logging.info("Running strategy scan...")
     timeframes = ["15m", "1h", "1d"]
-    for tf in timeframes:
-        entry_msg = generate_entry_alert(timeframe=tf)
-        bot.send_message(chat_id=CHAT_ID, text=entry_msg)
-        logging.info(f"Sent entry alert for {tf}")
-        
-        # Only TP alert for 1h and 1d
-        if tf in ["1h", "1d"]:
-            tp_msg = generate_tp_alert(timeframe=tf)
-            bot.send_message(chat_id=CHAT_ID, text=tp_msg)
-            logging.info(f"Sent TP alert for {tf}")
+    for symbol in COINS:
+        for tf in timeframes:
+            entry_msg = generate_entry_alert(symbol=symbol, timeframe=tf)
+            try:
+                bot.send_message(chat_id=CHAT_ID, text=entry_msg)
+                logging.info(f"Sent entry alert for {symbol} {tf}")
+            except Exception as e:
+                logging.error(f"Failed to send entry alert for {symbol} {tf}: {e}")
+            
+            # Only TP alert for 1h and 1d
+            if tf in ["1h", "1d"]:
+                tp_msg = generate_tp_alert(symbol=symbol, timeframe=tf)
+                try:
+                    bot.send_message(chat_id=CHAT_ID, text=tp_msg)
+                    logging.info(f"Sent TP alert for {symbol} {tf}")
+                except Exception as e:
+                    logging.error(f"Failed to send TP alert for {symbol} {tf}: {e}")
 
 # Send test alert on start
 try:
@@ -100,8 +113,8 @@ try:
 except Exception as e:
     logging.error(f"Error sending test alert: {e}")
 
-# Start scheduler with pytz timezone explicitly set
-scheduler = BackgroundScheduler(timezone=IST)
+# Start scheduler with pytz timezone (Asia/Kolkata)
+scheduler = BackgroundScheduler(timezone='Asia/Kolkata')
 scheduler.add_job(run_strategy, 'interval', minutes=10)
 scheduler.start()
 
