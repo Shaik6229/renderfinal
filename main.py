@@ -50,12 +50,15 @@ def fetch_ohlcv(symbol, interval, limit=100):
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
         data = resp.json()
+        print(f"Fetched {len(data)} candles for {symbol} {interval}")  # Debug info
     except Exception as e:
         logging.error(f"Error fetching OHLCV for {symbol} {interval}: {e}")
+        print(f"Error fetching OHLCV for {symbol} {interval}: {e}")  # Debug info
         return pd.DataFrame()  # Return empty DataFrame on error
-    
+
     if not data or not isinstance(data, list):
         logging.error(f"Invalid data received for {symbol} {interval}")
+        print(f"Invalid data received for {symbol} {interval}")  # Debug info
         return pd.DataFrame()
 
     df = pd.DataFrame(data, columns=[
@@ -68,6 +71,7 @@ def fetch_ohlcv(symbol, interval, limit=100):
     df['high'] = df['high'].astype(float)
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
     return df
+
 
 # Analyze indicators
 def analyze(symbol, interval):
