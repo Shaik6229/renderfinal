@@ -1,5 +1,5 @@
-# main.py — GOAT Crypto Alert Bot
-# Features: Entry Alerts, Take Profit, Trailing SL, Suppression Detection
+# main.py — Crypto Alert Bot (India Optimized Version)
+# ✅ Features: Entry Alerts, Fixed TP, TSL, Suppression Detection + Manual Test
 
 import os
 import logging
@@ -14,7 +14,7 @@ from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
 from ta.trend import EMAIndicator
 
-# Configuration
+# Config from Environment
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 SYMBOLS = [
@@ -23,7 +23,7 @@ SYMBOLS = [
     "AGIXUSDT", "GRTUSDT", "ILVUSDT", "SANDUSDT", "MANAUSDT",
     "ARUSDT", "PYTHUSDT", "WIFUSDT", "NEARUSDT", "PEPEUSDT"
 ]
-INTERVALS = {"15m": 0.21, "1h": 0.25, "1d": 0.35}  # Timeframe : TSL %
+INTERVALS = {"15m": 0.21, "1h": 0.25, "1d": 0.35}  # timeframe: TSL %
 
 logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(message)s')
 
@@ -36,14 +36,21 @@ def get_time():
     return datetime.now(ist).strftime("%Y-%m-%d %I:%M:%S %p IST")
 
 def fetch_ohlcv(symbol, interval, limit=100):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
-    try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        logging.error(f"Error fetching {symbol} {interval}: {e}")
+    url = f"https://api.binance.me/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+    tries = 3
+    for i in range(tries):
+        try:
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except Exception as e:
+            logging.warning(f"Attempt {i+1} failed for {symbol} {interval}: {e}")
+            time.sleep(2)
+    else:
+        logging.error(f"All attempts failed for {symbol} {interval}")
         return pd.DataFrame()
+    
     df = pd.DataFrame(data, columns=[
         'timestamp', 'open', 'high', 'low', 'close', 'volume',
         'close_time', 'quote_asset_volume', 'trades',
@@ -136,6 +143,7 @@ Price: {data['price']} | Time: {get_time()}
 """
 
 def run_strategy():
+    logging.info("Running strategy check...")
     for symbol in SYMBOLS:
         for interval, tsl_pct in INTERVALS.items():
             try:
@@ -151,19 +159,25 @@ def run_strategy():
             except Exception as e:
                 logging.error(f"Error with {symbol} {interval}: {e}")
 
-@app.route('/trigger')
-def trigger():
-    run_strategy()
-    return "Strategy run completed!"
-
-@app.route('/test')
-def test_alert():
-    bot.send_message(CHAT_ID, text="✅ Test Alert: Your crypto bot is running and able to send Telegram messages.")
-    return "Test alert sent to Telegram!"
+# Web Server + Test Routes
 
 @app.route('/')
 def home():
-    return "GOAT Crypto Bot is Alive!"
+    return "✅ GOAT Crypto Bot is Running!"
+
+@app.route('/trigger')
+def trigger():
+    run_strategy()
+    return "✅ Strategy run completed."
+
+@app.route('/tg-test')
+def test_alert():
+    try:
+        bot.send_message(CHAT_ID, text=f"✅ [TEST ALERT] — Your Crypto Bot is working!\nTime: {get_time()}")
+        return "✅ Test alert sent!"
+    except Exception as e:
+        logging.error(f"Test alert error: {e}")
+        return f"❌ Error sending test alert: {e}"
 
 if __name__ == '__main__':
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Kolkata'))
