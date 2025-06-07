@@ -29,13 +29,12 @@ def test_alert():
         return "Unauthorized", 401
 
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-chat_id = os.getenv("TELEGRAM_CHAT_ID")
-message = "✅ Test alert from your Crypto Alert Bot!"
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    message = "✅ Test alert from your Crypto Alert Bot!"
 
-# Debug: Check if env vars are missing
-if not bot_token or not chat_id:
-    return f"❌ Missing environment variables!\nTELEGRAM_BOT_TOKEN: {bot_token}\nTELEGRAM_CHAT_ID: {chat_id}", 500
-
+    # Debug: Check if env vars are missing
+    if not bot_token or not chat_id:
+        return f"❌ Missing environment variables!\nTELEGRAM_BOT_TOKEN: {bot_token}\nTELEGRAM_CHAT_ID: {chat_id}", 500
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {
@@ -51,6 +50,7 @@ if not bot_token or not chat_id:
             return f"Failed to send test alert: {resp.text}", 500
     except Exception as e:
         return f"Error sending test alert: {e}", 500
+
 # === End test alert endpoint ===
 
 def run():
