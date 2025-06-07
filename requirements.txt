@@ -1,7 +1,7 @@
+Flask
 pytz
-flask
-requests
-python-telegram-bot==13.15
+python-telegram-bot
 pandas
+requests
 ta
-python-binance
+apscheduler
