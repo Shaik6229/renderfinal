@@ -266,7 +266,10 @@ async def main_loop():
     "ILVUSDT", "SANDUSDT", "MANAUSDT", "DOGEUSDT",
     "MATICUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "NEARUSDT", "FTMUSDT",
     "ALGOUSDT", "XTZUSDT", "EGLDUSDT", "BCHUSDT", "VETUSDT", "CHZUSDT",
-    "HBARUSDT", "APEUSDT", "CROUSDT", "RUNEUSDT"
+    "HBARUSDT", "APEUSDT", "CROUSDT", "RUNEUSDT",
+    # ✅ High-quality new additions
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "ARBUSDT",
+    "PYTHUSDT", "TIAUSDT", "LDOUSDT", "JUPUSDT"
 ]
   # Add your list here
     intervals = {
