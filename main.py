@@ -6,7 +6,7 @@ from datetime import datetime
 import pytz
 import requests
 import pandas as pd
-from flask import Flask
+from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands, AverageTrueRange
@@ -18,6 +18,35 @@ app = Flask('')
 @app.route('/')
 def home():
     return "I'm alive!"
+
+# === New test alert endpoint ===
+@app.route('/test-alert')
+def test_alert():
+    # Change this secret key as you want
+    secret_key = "asdf"
+    key = request.args.get('key')
+    if key != secret_key:
+        return "Unauthorized", 401
+
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    message = "✅ Test alert from your Crypto Alert Bot!"
+
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    data = {
+        'chat_id': chat_id,
+        'text': message,
+        'parse_mode': 'Markdown'
+    }
+    try:
+        resp = requests.post(url, data=data)
+        if resp.status_code == 200:
+            return "Test alert sent!"
+        else:
+            return f"Failed to send test alert: {resp.text}", 500
+    except Exception as e:
+        return f"Error sending test alert: {e}", 500
+# === End test alert endpoint ===
 
 def run():
     app.run(host='0.0.0.0', port=8080)
@@ -42,14 +71,12 @@ def fetch_ohlcv(symbol, interval, limit=500):
         return pd.DataFrame()
 
 def is_suppressed(df):
-    # Suppression logic placeholder, can be refined later
-    # For example: low volatility, tight BB width, etc.
     if df.empty or len(df) < 20:
         return True
     bb = BollingerBands(df['close'])
     width = bb.bollinger_hband() - bb.bollinger_lband()
     avg_width = width.rolling(window=20).mean().iloc[-1]
-    return avg_width < 0.01 * df['close'].iloc[-1]  # very tight band = suppression
+    return avg_width < 0.01 * df['close'].iloc[-1]
 
 def fetch_ema(df, length=200):
     return EMAIndicator(df['close'], length).ema_indicator().iloc[-1]
@@ -240,7 +267,6 @@ async def main_loop():
             for interval, tsl_percent in intervals.items():
                 data = analyze(symbol, interval, tsl_percent)
                 if data:
-                    key = f"{symbol}_{interval}"
                     if data['entry']:
                         msg = entry_msg(data)
                         await send_telegram_message(bot_token, chat_id, msg)
