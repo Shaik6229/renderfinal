@@ -94,7 +94,29 @@ def analyze(symbol, interval, tsl_percent):
             trend = False
 
     suppressed = is_suppressed(df)
-    entry = rsi < 30 and last <= lower and k < 20 and d < 20 and k > d and vol_spike and trend and not suppressed
+    if interval == "15m":
+    # Stricter entry conditions for 15m to reduce noise
+    entry = (
+        rsi < 30 and
+        last <= lower and
+        k < 15 and d < 15 and
+        k > d and
+        vol_spike and
+        trend and
+        not suppressed
+    )
+else:
+    # For 1h and 1d keep original entry logic
+    entry = (
+        rsi < 30 and
+        last <= lower and
+        k < 20 and d < 20 and
+        k > d and
+        vol_spike and
+        trend and
+        not suppressed
+    )
+
     tp = last >= upper and k > 80 and d > 80
 
     key = f"{symbol}_{interval}"
