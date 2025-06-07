@@ -1,13 +1,11 @@
-
 services:
   - type: web
     name: crypto-alert-bot
     env: python
-    plan: free
-    buildCommand: ""
+    buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
-      - key: TELEGRAM_TOKEN
+      - key: BOT_TOKEN
         value: 8196216430:AAHSrVGKnQJgO61qjGDhMSHeK1xddrMje4g
-      - key: TELEGRAM_USER_ID
+      - key: CHAT_ID
         value: 7128406135
