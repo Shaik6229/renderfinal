@@ -260,7 +260,15 @@ async def main_loop():
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-    symbols = ["SUIUSDT", "SOLUSDT", "XRPUSDT"]  # Add your list here
+    symbols = [
+    "SUIUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "AVAXUSDT", "TRXUSDT",
+    "DOTUSDT", "RNDRUSDT", "FETUSDT", "INJUSDT", "AGIXUSDT", "GRTUSDT",
+    "ILVUSDT", "SANDUSDT", "MANAUSDT", "DOGEUSDT",
+    "MATICUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "NEARUSDT", "FTMUSDT",
+    "ALGOUSDT", "XTZUSDT", "EGLDUSDT", "BCHUSDT", "VETUSDT", "CHZUSDT",
+    "HBARUSDT", "APEUSDT", "CROUSDT", "RUNEUSDT"
+]
+  # Add your list here
     intervals = {
         "15m": 0.21,  # TSL percents
         "1h": 0.25,
