@@ -159,7 +159,7 @@ def run_strategy():
             except Exception as e:
                 logging.error(f"Error with {symbol} {interval}: {e}")
 
-# Web Server + Test Routes
+# Web Server + Debug/Test Routes
 
 @app.route('/')
 def home():
@@ -173,11 +173,37 @@ def trigger():
 @app.route('/tg-test')
 def test_alert():
     try:
-        bot.send_message(CHAT_ID, text=f"✅ [TEST ALERT] — Your Crypto Bot is working!\nTime: {get_time()}")
+        logging.info(f"Sending test alert to chat_id={CHAT_ID} with token prefix={BOT_TOKEN[:10]}...")
+        resp = bot.send_message(CHAT_ID, text=f"✅ [TEST ALERT] — Your Crypto Bot is working!\nTime: {get_time()}")
+        logging.info(f"Telegram response: {resp}")
         return "✅ Test alert sent!"
     except Exception as e:
-        logging.error(f"Test alert error: {e}")
+        logging.error(f"Test alert error: {e}", exc_info=True)
         return f"❌ Error sending test alert: {e}"
+
+@app.route('/env-check')
+def env_check():
+    token = os.getenv("BOT_TOKEN")
+    chat = os.getenv("CHAT_ID")
+    token_display = token[:5] + "..." if token else "None"
+    return f"BOT_TOKEN starts with: {token_display}, CHAT_ID: {chat}"
+
+@app.route('/telegram-ping')
+def telegram_ping():
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
+    try:
+        r = requests.get(url, timeout=10)
+        return f"Telegram getMe response: {r.json()}"
+    except Exception as e:
+        return f"Error contacting Telegram API: {e}"
+
+@app.route('/send-test-msg')
+def send_test_msg():
+    try:
+        resp = bot.send_message(CHAT_ID, text="Hello from minimal test script!")
+        return f"Sent message, Telegram response: {resp}"
+    except Exception as e:
+        return f"Error sending test message: {e}"
 
 if __name__ == '__main__':
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Kolkata'))
