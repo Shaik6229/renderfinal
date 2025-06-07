@@ -1,74 +1,85 @@
-# main.py — Crypto Alert Bot (India Optimized Version)
-# ✅ Features: Entry Alerts, Fixed TP, TSL, Suppression Detection + Manual Test
+# main.py — GOAT Crypto Alert Bot with multi-timeframe trend, ATR SL, volume spike, divergence
 
 import os
 import logging
 from datetime import datetime
 import pytz
 import requests
-import time
 import pandas as pd
 from flask import Flask
-from apscheduler.schedulers.background import BackgroundScheduler
-from telegram import Bot
+import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
-from ta.volatility import BollingerBands
+from ta.volatility import BollingerBands, AverageTrueRange
 from ta.trend import EMAIndicator
 
-# Config from Environment
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
-SYMBOLS = [
-    "SUIUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "AVAXUSDT",
-    "TRXUSDT", "DOTUSDT", "RNDRUSDT", "FETUSDT", "INJUSDT",
-    "AGIXUSDT", "GRTUSDT", "ILVUSDT", "SANDUSDT", "MANAUSDT",
-    "ARUSDT", "PYTHUSDT", "WIFUSDT", "NEARUSDT", "PEPEUSDT"
-]
-INTERVALS = {"15m": 0.21, "1h": 0.25, "1d": 0.35}  # timeframe: TSL %
+# Flask app to keep alive
+app = Flask('')
 
-logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(message)s')
+@app.route('/')
+def home():
+    return "I'm alive!"
 
-bot = Bot(token=BOT_TOKEN)
-app = Flask(__name__)
-highs_tracker = {}
+def run():
+    app.run(host='0.0.0.0', port=8080)
 
-def get_time():
-    ist = pytz.timezone('Asia/Kolkata')
-    return datetime.now(ist).strftime("%Y-%m-%d %I:%M:%S %p IST")
+# Globals
+highs_tracker = {}  # track highest price per symbol+interval for TSL
 
-def fetch_ohlcv(symbol, interval, limit=100):
-    url = f"https://api.binance.me/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
-    tries = 3
-    for i in range(tries):
-        try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            break
-        except Exception as e:
-            logging.warning(f"Attempt {i+1} failed for {symbol} {interval}: {e}")
-            time.sleep(2)
-    else:
-        logging.error(f"All attempts failed for {symbol} {interval}")
+# Fetch OHLCV from Binance public API
+def fetch_ohlcv(symbol, interval, limit=500):
+    url = f'https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}'
+    try:
+        data = requests.get(url).json()
+        df = pd.DataFrame(data, columns=['open_time', 'open', 'high', 'low', 'close', 'volume',
+                                         'close_time', 'quote_asset_volume', 'trades',
+                                         'taker_buy_base', 'taker_buy_quote', 'ignore'])
+        df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
+        numeric_cols = ['open', 'high', 'low', 'close', 'volume']
+        df[numeric_cols] = df[numeric_cols].astype(float)
+        return df
+    except Exception as e:
+        logging.error(f"Error fetching OHLCV: {e}")
         return pd.DataFrame()
-    
-    df = pd.DataFrame(data, columns=[
-        'timestamp', 'open', 'high', 'low', 'close', 'volume',
-        'close_time', 'quote_asset_volume', 'trades',
-        'taker_buy_base', 'taker_buy_quote', 'ignore']
-    )
-    df['close'] = df['close'].astype(float)
-    df['low'] = df['low'].astype(float)
-    df['high'] = df['high'].astype(float)
-    df['volume'] = df['volume'].astype(float)
-    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-    return df
 
 def is_suppressed(df):
-    bb = BollingerBands(close=df['close'])
+    # Suppression logic placeholder, can be refined later
+    # For example: low volatility, tight BB width, etc.
+    if df.empty or len(df) < 20:
+        return True
+    bb = BollingerBands(df['close'])
     width = bb.bollinger_hband() - bb.bollinger_lband()
-    price_range = df['high'] - df['low']
-    return width.iloc[-1] < price_range.rolling(20).mean().iloc[-1] * 0.5
+    avg_width = width.rolling(window=20).mean().iloc[-1]
+    return avg_width < 0.01 * df['close'].iloc[-1]  # very tight band = suppression
+
+def fetch_ema(df, length=200):
+    return EMAIndicator(df['close'], length).ema_indicator().iloc[-1]
+
+def check_trend(symbol, interval):
+    df = fetch_ohlcv(symbol, interval)
+    if df.empty or len(df) < 200:
+        return False
+    ema_200 = fetch_ema(df, 200)
+    return df['close'].iloc[-1] > ema_200
+
+def volume_spike(df):
+    vol = df['volume'].iloc[-20:]
+    mean_vol = vol.mean()
+    std_vol = vol.std()
+    current_vol = df['volume'].iloc[-1]
+    return current_vol > mean_vol + 1.5 * std_vol
+
+def rsi_divergence(df):
+    rsi_vals = RSIIndicator(df['close']).rsi().iloc[-15:]
+    lows_price = df['low'].iloc[-15:]
+    if len(rsi_vals) < 14 or len(lows_price) < 14:
+        return False
+    price_lows_idx = lows_price.nsmallest(2).index.tolist()
+    if len(price_lows_idx) < 2:
+        return False
+    first, second = price_lows_idx[0], price_lows_idx[1]
+    price_condition = lows_price.loc[first] > lows_price.loc[second]
+    rsi_condition = rsi_vals.loc[first] < rsi_vals.loc[second]
+    return price_condition and rsi_condition
 
 def analyze(symbol, interval, tsl_percent):
     df = fetch_ohlcv(symbol, interval)
@@ -76,28 +87,43 @@ def analyze(symbol, interval, tsl_percent):
         return None
 
     close = df['close']
-    rsi = RSIIndicator(close=close).rsi().iloc[-1]
-    stoch = StochasticOscillator(df['high'], df['low'], close)
+    high = df['high']
+    low = df['low']
+
+    rsi_obj = RSIIndicator(close=close)
+    rsi = rsi_obj.rsi().iloc[-1]
+
+    stoch = StochasticOscillator(high, low, close)
     k = stoch.stoch().iloc[-1]
     d = stoch.stoch_signal().iloc[-1]
+
     bb = BollingerBands(close)
     lower, upper = bb.bollinger_lband().iloc[-1], bb.bollinger_hband().iloc[-1]
+
     last = close.iloc[-1]
 
-    vol_spike = df['volume'].iloc[-1] > df['volume'].rolling(20).mean().iloc[-1]
-    trend = True
+    vol_spike = volume_spike(df)
+
+    # Multi-timeframe trend confirmation
     if interval == "15m":
-        df_1h = fetch_ohlcv(symbol, "1h")
-        if not df_1h.empty and len(df_1h) >= 200:
-            ema_200 = EMAIndicator(df_1h['close'], 200).ema_indicator().iloc[-1]
-            trend = df_1h['close'].iloc[-1] > ema_200
-        else:
-            trend = False
+        trend = check_trend(symbol, "1h")
+    elif interval == "1h":
+        trend = check_trend(symbol, "4h")
+    elif interval == "1d":
+        trend = check_trend(symbol, "1w")
+    else:
+        trend = True
 
     suppressed = is_suppressed(df)
 
+    atr = AverageTrueRange(high=high, low=low, close=close, window=14).average_true_range().iloc[-1]
+
+    recent_low = low.iloc[-5:].min()
+    initial_sl = min(recent_low - atr*0.5, lower - atr*0.5)
+
+    div = rsi_divergence(df)
+
     if interval == "15m":
-        # Stricter entry conditions for 15m to reduce noise
         entry = (
             rsi < 30 and
             last <= lower and
@@ -105,10 +131,10 @@ def analyze(symbol, interval, tsl_percent):
             k > d and
             vol_spike and
             trend and
-            not suppressed
+            not suppressed and
+            div
         )
     else:
-        # For 1h and 1d keep original entry logic
         entry = (
             rsi < 30 and
             last <= lower and
@@ -126,112 +152,109 @@ def analyze(symbol, interval, tsl_percent):
     new_high = max(prev_high, last)
     tsl_trigger = new_high * (1 - tsl_percent)
     tsl_hit = last < tsl_trigger
+
     if entry:
         highs_tracker[key] = last
     elif not tsl_hit:
         highs_tracker[key] = new_high
 
     return {
-        'symbol': symbol, 'interval': interval, 'price': round(last, 4),
-        'rsi': round(rsi, 2), 'stoch_k': round(k, 2), 'stoch_d': round(d, 2),
-        'entry': entry, 'tp': tp, 'tsl_hit': tsl_hit, 'trend': trend,
-        'suppressed': suppressed, 'volume_spike': vol_spike,
-        'bb_upper': round(upper, 4), 'bb_lower': round(lower, 4),
-        'tsl_level': round(tsl_trigger, 4), 'highest': round(new_high, 4)
+        'symbol': symbol,
+        'interval': interval,
+        'price': round(last, 6),
+        'rsi': round(rsi, 2),
+        'stoch_k': round(k, 2),
+        'stoch_d': round(d, 2),
+        'entry': entry,
+        'tp': tp,
+        'tsl_hit': tsl_hit,
+        'trend': trend,
+        'suppressed': suppressed,
+        'volume_spike': vol_spike,
+        'bb_upper': round(upper, 6),
+        'bb_lower': round(lower, 6),
+        'tsl_level': round(tsl_trigger, 6),
+        'highest': round(new_high, 6),
+        'initial_sl': round(initial_sl, 6),
+        'divergence': div
     }
+
+def get_time():
+    tz = pytz.timezone("Asia/Kolkata")
+    return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
 
 def entry_msg(data):
     return f"""
 🟢 [ENTRY] — {data['symbol']} ({data['interval']})
 RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price at Lower BB ✅ | Volume Spike ✅ | Trend: {'Bullish ✅' if data['trend'] else '❌'}
+Price at Lower BB ✅ | Volume Spike {'✅' if data['volume_spike'] else '❌'} | Trend: {'Bullish ✅' if data['trend'] else '❌'}
 Suppression: {'Yes ❌' if data['suppressed'] else 'No ✅'}
-TP Target: {data['bb_upper']} | TSL: {round((1 - data['tsl_level']/data['highest']) * 100, 2)}%
+RSI Divergence: {'Yes ✅' if data['divergence'] else 'No ❌'}
+Initial SL: {data['initial_sl']}
+TP Target: {data['bb_upper']} | TSL Level: {data['tsl_level']} ({round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
 Price: {data['price']} | Time: {get_time()}
 """
 
 def tp_msg(data):
     return f"""
-🔹 [TAKE PROFIT] — {data['symbol']} ({data['interval']})
-Stoch %K: {data['stoch_k']} | %D: {data['stoch_d']}
-Upper BB Touched ✅
-Price: {data['price']} | TP: {data['bb_upper']} | Time: {get_time()}
+🟡 [TAKE PROFIT] — {data['symbol']} ({data['interval']})
+Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
+Price: {data['price']} | Time: {get_time()}
 """
 
 def tsl_msg(data):
     return f"""
-🔻 [TSL HIT] — {data['symbol']} ({data['interval']})
-Trailing SL Hit Below {data['tsl_level']} (High: {data['highest']})
-Exit Suggested ✅
-Price: {data['price']} | Time: {get_time()}
+🔴 [TRAILING STOP HIT] — {data['symbol']} ({data['interval']})
+Price: {data['price']} fell below TSL level: {data['tsl_level']}
+Time: {get_time()}
 """
 
-def run_strategy():
-    logging.info("Running strategy check...")
-    for symbol in SYMBOLS:
-        for interval, tsl_pct in INTERVALS.items():
-            try:
-                result = analyze(symbol, interval, tsl_pct)
-                if not result:
-                    continue
-                if result['entry']:
-                    bot.send_message(CHAT_ID, text=entry_msg(result))
-                elif result['tp']:
-                    bot.send_message(CHAT_ID, text=tp_msg(result))
-                elif result['tsl_hit']:
-                    bot.send_message(CHAT_ID, text=tsl_msg(result))
-            except Exception as e:
-                logging.error(f"Error with {symbol} {interval}: {e}")
-
-# Web Server + Debug/Test Routes
-
-@app.route('/')
-def home():
-    return "✅ GOAT Crypto Bot is Running!"
-
-@app.route('/trigger')
-def trigger():
-    run_strategy()
-    return "✅ Strategy run completed."
-
-@app.route('/tg-test')
-def test_alert():
+async def send_telegram_message(bot_token, chat_id, message):
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    data = {
+        'chat_id': chat_id,
+        'text': message,
+        'parse_mode': 'Markdown'
+    }
     try:
-        logging.info(f"Sending test alert to chat_id={CHAT_ID} with token prefix={BOT_TOKEN[:10]}...")
-        resp = bot.send_message(CHAT_ID, text=f"✅ [TEST ALERT] — Your Crypto Bot is working!\nTime: {get_time()}")
-        logging.info(f"Telegram response: {resp}")
-        return "✅ Test alert sent!"
+        resp = requests.post(url, data=data)
+        return resp.json()
     except Exception as e:
-        logging.error(f"Test alert error: {e}", exc_info=True)
-        return f"❌ Error sending test alert: {e}"
+        logging.error(f"Telegram send error: {e}")
+        return None
 
-@app.route('/env-check')
-def env_check():
-    token = os.getenv("BOT_TOKEN")
-    chat = os.getenv("CHAT_ID")
-    token_display = token[:5] + "..." if token else "None"
-    return f"BOT_TOKEN starts with: {token_display}, CHAT_ID: {chat}"
+async def main_loop():
+    # Your tokens and chat ID here
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-@app.route('/telegram-ping')
-def telegram_ping():
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
-    try:
-        r = requests.get(url, timeout=10)
-        return f"Telegram getMe response: {r.json()}"
-    except Exception as e:
-        return f"Error contacting Telegram API: {e}"
+    symbols = ["SUIUSDT", "SOLUSDT", "XRPUSDT"]  # Add your list here
+    intervals = {
+        "15m": 0.21,  # TSL percents
+        "1h": 0.25,
+        "1d": 0.35
+    }
 
-@app.route('/send-test-msg')
-def send_test_msg():
-    try:
-        resp = bot.send_message(CHAT_ID, text="Hello from minimal test script!")
-        return f"Sent message, Telegram response: {resp}"
-    except Exception as e:
-        return f"Error sending test message: {e}"
+    while True:
+        for symbol in symbols:
+            for interval, tsl_percent in intervals.items():
+                data = analyze(symbol, interval, tsl_percent)
+                if data:
+                    key = f"{symbol}_{interval}"
+                    if data['entry']:
+                        msg = entry_msg(data)
+                        await send_telegram_message(bot_token, chat_id, msg)
+                    elif data['tp']:
+                        msg = tp_msg(data)
+                        await send_telegram_message(bot_token, chat_id, msg)
+                    elif data['tsl_hit']:
+                        msg = tsl_msg(data)
+                        await send_telegram_message(bot_token, chat_id, msg)
+        await asyncio.sleep(600)  # 10 minutes
 
 if __name__ == '__main__':
-    scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Kolkata'))
-    scheduler.add_job(run_strategy, 'interval', minutes=10)
-    scheduler.start()
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    import nest_asyncio
+    nest_asyncio.apply()
+    from threading import Thread
+    Thread(target=run).start()
+    asyncio.run(main_loop())
