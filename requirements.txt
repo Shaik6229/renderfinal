@@ -1,7 +1,7 @@
-Flask
-pytz
+flask
 python-telegram-bot
 pandas
 requests
-ta
 apscheduler
+ta
+pytz
