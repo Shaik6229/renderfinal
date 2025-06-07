@@ -5,3 +5,4 @@ requests
 apscheduler
 ta
 pytz
+nest_asyncio
