@@ -216,17 +216,28 @@ async def send_telegram_message(bot_token, chat_id, message):
 async def main_loop():
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    symbols = [
-        "SUIUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "AVAXUSDT", "TRXUSDT",
-        "DOTUSDT", "RNDRUSDT", "FETUSDT", "INJUSDT", "AGIXUSDT", "GRTUSDT",
-        "ILVUSDT", "SANDUSDT", "MANAUSDT", "DOGEUSDT",
-        "MATICUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "NEARUSDT", "FTMUSDT",
-        "ALGOUSDT", "XTZUSDT", "EGLDUSDT", "BCHUSDT", "VETUSDT", "CHZUSDT",
-        "HBARUSDT", "APEUSDT", "CROUSDT", "RUNEUSDT",
-        "BTCUSDT", "ETHUSDT", "BNBUSDT", "ARBUSDT",
-        "PYTHUSDT", "TIAUSDT", "LDOUSDT", "JUPUSDT", "SEIUSDT", "STRKUSDT", "APTUSDT", "OPUSDT", "ROSEUSDT", 
-"DYDXUSDT", "MKRUSDT", "KASUSDT", "LPTUSDT", "JTOUSDT", "METISUSDT"
-    ]
+    SYMBOLS = [
+    # ✅ High‑Cap Halal
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
+    "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT",
+    "TRXUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT",
+    "EGLDUSDT", "XLMUSDT", "FILUSDT",
+
+    # ✅ Mid‑Cap Halal
+    "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT", "FETUSDT",
+    "RNDRUSDT", "ARUSDT", "GRTUSDT", "LDOUSDT", "STXUSDT",
+    "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "ZILUSDT",
+    "SKLUSDT", "KAVAUSDT", "ANKRUSDT", "ENSUSDT", "FLUXUSDT",
+    "SFPUSDT",
+
+    # ✅ Low‑Cap Gems Halal
+    "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT",
+    "MKRUSDT", "COTIUSDT", "REQUSDT", "PENDLEUSDT",
+    "ACHUSDT", "LOOMUSDT", "LINAUSDT", "NMRUSDT", "IDUSDT",
+
+    # ⚠️ Grey‑Listed (use responsibly)
+    "DOGEUSDT"
+]
     intervals = {"15m": 0.21, "1h": 0.25, "1d": 0.35}
     while True:
         for symbol in symbols:
