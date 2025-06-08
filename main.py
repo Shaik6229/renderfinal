@@ -1,4 +1,4 @@
-# main.py — GOAT Crypto Alert Bot with multi-timeframe trend, ATR SL, volume spike, divergence
+# main.py — GOAT Crypto Alert Bot with Confidence Alerts Added
 
 import os
 import logging
@@ -19,29 +19,19 @@ app = Flask('')
 def home():
     return "I'm alive!"
 
-# === New test alert endpoint ===
 @app.route('/test-alert')
 def test_alert():
-    # Change this secret key as you want
     secret_key = "asdf"
     key = request.args.get('key')
     if key != secret_key:
         return "Unauthorized", 401
-
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     message = "✅ Test alert from your Crypto Alert Bot!"
-
-    # Debug: Check if env vars are missing
     if not bot_token or not chat_id:
-        return f"❌ Missing environment variables!\nTELEGRAM_BOT_TOKEN: {bot_token}\nTELEGRAM_CHAT_ID: {chat_id}", 500
-
+        return f"❌ Missing environment variables!", 500
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {
-        'chat_id': chat_id,
-        'text': message,
-        'parse_mode': 'Markdown'
-    }
+    data = {'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'}
     try:
         resp = requests.post(url, data=data)
         if resp.status_code == 200:
@@ -51,15 +41,11 @@ def test_alert():
     except Exception as e:
         return f"Error sending test alert: {e}", 500
 
-# === End test alert endpoint ===
-
 def run():
     app.run(host='0.0.0.0', port=8080)
 
-# Globals
-highs_tracker = {}  # track highest price per symbol+interval for TSL
+highs_tracker = {}
 
-# Fetch OHLCV from Binance public API
 def fetch_ohlcv(symbol, interval, limit=500):
     url = f'https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}'
     try:
@@ -117,26 +103,18 @@ def analyze(symbol, interval, tsl_percent):
     df = fetch_ohlcv(symbol, interval)
     if df.empty or len(df) < 20:
         return None
-
     close = df['close']
     high = df['high']
     low = df['low']
-
     rsi_obj = RSIIndicator(close=close)
     rsi = rsi_obj.rsi().iloc[-1]
-
     stoch = StochasticOscillator(high, low, close)
     k = stoch.stoch().iloc[-1]
     d = stoch.stoch_signal().iloc[-1]
-
     bb = BollingerBands(close)
     lower, upper = bb.bollinger_lband().iloc[-1], bb.bollinger_hband().iloc[-1]
-
     last = close.iloc[-1]
-
     vol_spike = volume_spike(df)
-
-    # Multi-timeframe trend confirmation
     if interval == "15m":
         trend = check_trend(symbol, "1h")
     elif interval == "1h":
@@ -145,91 +123,81 @@ def analyze(symbol, interval, tsl_percent):
         trend = check_trend(symbol, "1w")
     else:
         trend = True
-
     suppressed = is_suppressed(df)
-
     atr = AverageTrueRange(high=high, low=low, close=close, window=14).average_true_range().iloc[-1]
-
     recent_low = low.iloc[-5:].min()
     initial_sl = min(recent_low - atr*0.5, lower - atr*0.5)
-
     div = rsi_divergence(df)
-
     if interval == "15m":
-        entry = (
-            rsi < 30 and
-            last <= lower and
-            k < 15 and d < 15 and
-            k > d and
-            vol_spike and
-            trend and
-            not suppressed and
-            div
-        )
+        entry = (rsi < 30 and last <= lower and k < 15 and d < 15 and k > d and vol_spike and trend and not suppressed and div)
     else:
-        entry = (
-            rsi < 30 and
-            last <= lower and
-            k < 20 and d < 20 and
-            k > d and
-            vol_spike and
-            trend and
-            not suppressed
-        )
-
+        entry = (rsi < 30 and last <= lower and k < 20 and d < 20 and k > d and vol_spike and trend and not suppressed)
     tp = last >= upper and k > 80 and d > 80
-
     key = f"{symbol}_{interval}"
     prev_high = highs_tracker.get(key, last)
     new_high = max(prev_high, last)
     tsl_trigger = new_high * (1 - tsl_percent)
     tsl_hit = last < tsl_trigger
-
     if entry:
         highs_tracker[key] = last
     elif not tsl_hit:
         highs_tracker[key] = new_high
-
     return {
-        'symbol': symbol,
-        'interval': interval,
-        'price': round(last, 6),
-        'rsi': round(rsi, 2),
-        'stoch_k': round(k, 2),
-        'stoch_d': round(d, 2),
-        'entry': entry,
-        'tp': tp,
-        'tsl_hit': tsl_hit,
-        'trend': trend,
-        'suppressed': suppressed,
-        'volume_spike': vol_spike,
-        'bb_upper': round(upper, 6),
-        'bb_lower': round(lower, 6),
-        'tsl_level': round(tsl_trigger, 6),
-        'highest': round(new_high, 6),
-        'initial_sl': round(initial_sl, 6),
-        'divergence': div
+        'symbol': symbol, 'interval': interval, 'price': round(last, 6),
+        'rsi': round(rsi, 2), 'stoch_k': round(k, 2), 'stoch_d': round(d, 2),
+        'entry': entry, 'tp': tp, 'tsl_hit': tsl_hit, 'trend': trend,
+        'suppressed': suppressed, 'volume_spike': vol_spike,
+        'bb_upper': round(upper, 6), 'bb_lower': round(lower, 6),
+        'tsl_level': round(tsl_trigger, 6), 'highest': round(new_high, 6),
+        'initial_sl': round(initial_sl, 6), 'divergence': div
     }
 
 def get_time():
     tz = pytz.timezone("Asia/Kolkata")
     return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
 
+def interpret_confidence(conf):
+    if conf >= 85:
+        return f"{conf}% ✅ *Strong setup* — consider full position"
+    elif conf >= 70:
+        return f"{conf}% ⚠️ *Decent setup* — consider half position"
+    elif conf >= 50:
+        return f"{conf}% 🧪 *Weak setup* — small size or wait"
+    else:
+        return f"{conf}% ❌ *Low confidence* — better to skip"
+
 def entry_msg(data):
+    confidence = 0
+    confidence += 20 if data['volume_spike'] else 0
+    confidence += 20 if data['trend'] else 0
+    confidence += 15 if not data['suppressed'] else 0
+    confidence += 15 if data['divergence'] else 0
+    confidence += 15 if data['rsi'] < 30 else 0
+    confidence += 15 if data['stoch_k'] < 20 and data['stoch_d'] < 20 else 0
+    confidence = min(confidence, 100)
+    suggestion = interpret_confidence(confidence)
     return f"""
-🟢 [ENTRY] — {data['symbol']} ({data['interval']})
+🟢 *[ENTRY]* — {data['symbol']} ({data['interval']})
+*Confidence:* {suggestion}
 RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Price at Lower BB ✅ | Volume Spike {'✅' if data['volume_spike'] else '❌'} | Trend: {'Bullish ✅' if data['trend'] else '❌'}
-Suppression: {'Yes ❌' if data['suppressed'] else 'No ✅'}
-RSI Divergence: {'Yes ✅' if data['divergence'] else 'No ❌'}
+Suppression: {'Yes ❌' if data['suppressed'] else 'No ✅'} | RSI Divergence: {'Yes ✅' if data['divergence'] else 'No ❌'}
 Initial SL: {data['initial_sl']}
 TP Target: {data['bb_upper']} | TSL Level: {data['tsl_level']} ({round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
 Price: {data['price']} | Time: {get_time()}
 """
 
 def tp_msg(data):
+    confidence = 0
+    confidence += 25 if data['rsi'] > 70 else 0
+    confidence += 25 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
+    confidence += 25 if data['price'] >= data['bb_upper'] else 0
+    confidence += 25 if not data['suppressed'] else 0
+    confidence = min(confidence, 100)
+    suggestion = interpret_confidence(confidence)
     return f"""
-🟡 [TAKE PROFIT] — {data['symbol']} ({data['interval']})
+🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']})
+*Confidence:* {suggestion}
 Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Price: {data['price']} | Time: {get_time()}
 """
@@ -243,11 +211,7 @@ Time: {get_time()}
 
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {
-        'chat_id': chat_id,
-        'text': message,
-        'parse_mode': 'Markdown'
-    }
+    data = {'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'}
     try:
         resp = requests.post(url, data=data)
         return resp.json()
@@ -256,28 +220,19 @@ async def send_telegram_message(bot_token, chat_id, message):
         return None
 
 async def main_loop():
-    # Your tokens and chat ID here
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
     symbols = [
-    "SUIUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "AVAXUSDT", "TRXUSDT",
-    "DOTUSDT", "RNDRUSDT", "FETUSDT", "INJUSDT", "AGIXUSDT", "GRTUSDT",
-    "ILVUSDT", "SANDUSDT", "MANAUSDT", "DOGEUSDT",
-    "MATICUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "NEARUSDT", "FTMUSDT",
-    "ALGOUSDT", "XTZUSDT", "EGLDUSDT", "BCHUSDT", "VETUSDT", "CHZUSDT",
-    "HBARUSDT", "APEUSDT", "CROUSDT", "RUNEUSDT",
-    # ✅ High-quality new additions
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "ARBUSDT",
-    "PYTHUSDT", "TIAUSDT", "LDOUSDT", "JUPUSDT"
-]
-  # Add your list here
-    intervals = {
-        "15m": 0.21,  # TSL percents
-        "1h": 0.25,
-        "1d": 0.35
-    }
-
+        "SUIUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "AVAXUSDT", "TRXUSDT",
+        "DOTUSDT", "RNDRUSDT", "FETUSDT", "INJUSDT", "AGIXUSDT", "GRTUSDT",
+        "ILVUSDT", "SANDUSDT", "MANAUSDT", "DOGEUSDT",
+        "MATICUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "NEARUSDT", "FTMUSDT",
+        "ALGOUSDT", "XTZUSDT", "EGLDUSDT", "BCHUSDT", "VETUSDT", "CHZUSDT",
+        "HBARUSDT", "APEUSDT", "CROUSDT", "RUNEUSDT",
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "ARBUSDT",
+        "PYTHUSDT", "TIAUSDT", "LDOUSDT", "JUPUSDT"
+    ]
+    intervals = {"15m": 0.21, "1h": 0.25, "1d": 0.35}
     while True:
         for symbol in symbols:
             for interval, tsl_percent in intervals.items():
@@ -292,7 +247,7 @@ async def main_loop():
                     elif data['tsl_hit']:
                         msg = tsl_msg(data)
                         await send_telegram_message(bot_token, chat_id, msg)
-        await asyncio.sleep(600)  # 10 minutes
+        await asyncio.sleep(600)
 
 if __name__ == '__main__':
     import nest_asyncio
