@@ -224,7 +224,8 @@ async def main_loop():
         "ALGOUSDT", "XTZUSDT", "EGLDUSDT", "BCHUSDT", "VETUSDT", "CHZUSDT",
         "HBARUSDT", "APEUSDT", "CROUSDT", "RUNEUSDT",
         "BTCUSDT", "ETHUSDT", "BNBUSDT", "ARBUSDT",
-        "PYTHUSDT", "TIAUSDT", "LDOUSDT", "JUPUSDT"
+        "PYTHUSDT", "TIAUSDT", "LDOUSDT", "JUPUSDT", "SEIUSDT", "STRKUSDT", "APTUSDT", "OPUSDT", "ROSEUSDT", 
+"DYDXUSDT", "MKRUSDT", "KASUSDT", "LPTUSDT", "JTOUSDT", "METISUSDT"
     ]
     intervals = {"15m": 0.21, "1h": 0.25, "1d": 0.35}
     while True:
