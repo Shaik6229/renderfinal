@@ -1,4 +1,4 @@
-# main.py — GOAT Crypto Alert Bot with Confidence Alerts Added
+# main.py — GOAT Crypto Alert Bot with Confidence Alerts
 
 import os
 import logging
@@ -106,50 +106,52 @@ def analyze(symbol, interval, tsl_percent):
     close = df['close']
     high = df['high']
     low = df['low']
-    rsi_obj = RSIIndicator(close=close)
-    rsi = rsi_obj.rsi().iloc[-1]
+    rsi = RSIIndicator(close).rsi().iloc[-1]
     stoch = StochasticOscillator(high, low, close)
     k = stoch.stoch().iloc[-1]
     d = stoch.stoch_signal().iloc[-1]
     bb = BollingerBands(close)
-    lower, upper = bb.bollinger_lband().iloc[-1], bb.bollinger_hband().iloc[-1]
+    lower = bb.bollinger_lband().iloc[-1]
+    upper = bb.bollinger_hband().iloc[-1]
     last = close.iloc[-1]
-    vol_spike = volume_spike(df)
-    if interval == "15m":
-        trend = check_trend(symbol, "1h")
-    elif interval == "1h":
-        trend = check_trend(symbol, "4h")
-    elif interval == "1d":
-        trend = check_trend(symbol, "1w")
-    else:
-        trend = True
+    vol = volume_spike(df)
+    trend = check_trend(symbol, "1h" if interval == "15m" else "4h" if interval == "1h" else "1w")
     suppressed = is_suppressed(df)
-    atr = AverageTrueRange(high=high, low=low, close=close, window=14).average_true_range().iloc[-1]
-    recent_low = low.iloc[-5:].min()
-    initial_sl = min(recent_low - atr*0.5, lower - atr*0.5)
     div = rsi_divergence(df)
-    if interval == "15m":
-        entry = (rsi < 30 and last <= lower and k < 15 and d < 15 and k > d and vol_spike and trend and not suppressed and div)
-    else:
-        entry = (rsi < 30 and last <= lower and k < 20 and d < 20 and k > d and vol_spike and trend and not suppressed)
-    tp = last >= upper and k > 80 and d > 80
+    atr = AverageTrueRange(high, low, close).average_true_range().iloc[-1]
+    recent_low = low.iloc[-5:].min()
+    initial_sl = min(recent_low - atr * 0.5, lower - atr * 0.5)
     key = f"{symbol}_{interval}"
     prev_high = highs_tracker.get(key, last)
     new_high = max(prev_high, last)
     tsl_trigger = new_high * (1 - tsl_percent)
     tsl_hit = last < tsl_trigger
-    if entry:
-        highs_tracker[key] = last
+    if vol and trend and not suppressed:
+        highs_tracker[key] = last if last > prev_high else prev_high
     elif not tsl_hit:
         highs_tracker[key] = new_high
+
+    # confidence scoring
+    confidence = 0
+    confidence += 20 if vol else 0
+    confidence += 20 if trend else 0
+    confidence += 15 if not suppressed else 0
+    confidence += 15 if div else 0
+    confidence += 15 if rsi < 30 else 0
+    confidence += 15 if k < 20 and d < 20 else 0
+    confidence = min(confidence, 100)
+    entry = confidence >= 70
+    tp = last >= upper and k > 80 and d > 80
+
     return {
         'symbol': symbol, 'interval': interval, 'price': round(last, 6),
         'rsi': round(rsi, 2), 'stoch_k': round(k, 2), 'stoch_d': round(d, 2),
         'entry': entry, 'tp': tp, 'tsl_hit': tsl_hit, 'trend': trend,
-        'suppressed': suppressed, 'volume_spike': vol_spike,
+        'suppressed': suppressed, 'volume_spike': vol,
         'bb_upper': round(upper, 6), 'bb_lower': round(lower, 6),
         'tsl_level': round(tsl_trigger, 6), 'highest': round(new_high, 6),
-        'initial_sl': round(initial_sl, 6), 'divergence': div
+        'initial_sl': round(initial_sl, 6), 'divergence': div,
+        'confidence': confidence
     }
 
 def get_time():
@@ -167,15 +169,7 @@ def interpret_confidence(conf):
         return f"{conf}% ❌ *Low confidence* — better to skip"
 
 def entry_msg(data):
-    confidence = 0
-    confidence += 20 if data['volume_spike'] else 0
-    confidence += 20 if data['trend'] else 0
-    confidence += 15 if not data['suppressed'] else 0
-    confidence += 15 if data['divergence'] else 0
-    confidence += 15 if data['rsi'] < 30 else 0
-    confidence += 15 if data['stoch_k'] < 20 and data['stoch_d'] < 20 else 0
-    confidence = min(confidence, 100)
-    suggestion = interpret_confidence(confidence)
+    suggestion = interpret_confidence(data['confidence'])
     return f"""
 🟢 *[ENTRY]* — {data['symbol']} ({data['interval']})
 *Confidence:* {suggestion}
