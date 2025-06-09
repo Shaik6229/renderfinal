@@ -6,6 +6,7 @@ from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands, AverageTrueRange
 
 highs_tracker = {}
+alert_flags = {}  # Tracks last alert state per symbol+interval+type
 
 def start_bot():
     asyncio.run(main_loop())
@@ -71,12 +72,32 @@ async def main_loop():
                         'initial_sl': round(initial_sl, 6), 'divergence': div, 'confidence': confidence
                     }
 
+                    alert_key = f"{symbol}_{interval}"
+                    
+                    # ENTRY
                     if data['entry']:
-                        await send_telegram_message(bot_token, chat_id, entry_msg(data))
-                    elif data['tp']:
-                        await send_telegram_message(bot_token, chat_id, tp_msg(data))
-                    elif data['tsl_hit']:
-                        await send_telegram_message(bot_token, chat_id, tsl_msg(data))
+                        if alert_flags.get(alert_key + "_entry") != True:
+                            await send_telegram_message(bot_token, chat_id, entry_msg(data))
+                            alert_flags[alert_key + "_entry"] = True
+                    else:
+                        alert_flags[alert_key + "_entry"] = False
+                    
+                    # TP
+                    if data['tp']:
+                        if alert_flags.get(alert_key + "_tp") != True:
+                            await send_telegram_message(bot_token, chat_id, tp_msg(data))
+                            alert_flags[alert_key + "_tp"] = True
+                    else:
+                        alert_flags[alert_key + "_tp"] = False
+                    
+                    # TSL
+                    if data['tsl_hit']:
+                        if alert_flags.get(alert_key + "_tsl") != True:
+                            await send_telegram_message(bot_token, chat_id, tsl_msg(data))
+                            alert_flags[alert_key + "_tsl"] = True
+                    else:
+                        alert_flags[alert_key + "_tsl"] = False
+
                 except Exception as e:
-                    print(f"Error in main loop: {e}")
+                    print(f"Error in main loop for {symbol} {interval}: {e}")
         await asyncio.sleep(600)
