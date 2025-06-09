@@ -1,5 +1,3 @@
-# main.py — GOAT Crypto Alert Bot with Confidence Alerts
-
 import os
 import logging
 from datetime import datetime
@@ -11,6 +9,9 @@ import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands, AverageTrueRange
 from ta.trend import EMAIndicator
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s — %(message)s")
 
 # Flask app to keep alive
 app = Flask('')
@@ -37,8 +38,10 @@ def test_alert():
         if resp.status_code == 200:
             return "Test alert sent!"
         else:
+            logging.error(f"Failed to send test alert: {resp.text}")
             return f"Failed to send test alert: {resp.text}", 500
     except Exception as e:
+        logging.error(f"Error sending test alert: {e}")
         return f"Error sending test alert: {e}", 500
 
 def run():
@@ -58,16 +61,20 @@ def fetch_ohlcv(symbol, interval, limit=500):
         df[numeric_cols] = df[numeric_cols].astype(float)
         return df
     except Exception as e:
-        logging.error(f"Error fetching OHLCV: {e}")
+        logging.error(f"Error fetching OHLCV for {symbol} {interval}: {e}")
         return pd.DataFrame()
 
 def is_suppressed(df):
     if df.empty or len(df) < 20:
         return True
-    bb = BollingerBands(df['close'])
-    width = bb.bollinger_hband() - bb.bollinger_lband()
-    avg_width = width.rolling(window=20).mean().iloc[-1]
-    return avg_width < 0.01 * df['close'].iloc[-1]
+    try:
+        bb = BollingerBands(df['close'])
+        width = bb.bollinger_hband() - bb.bollinger_lband()
+        avg_width = width.rolling(window=20).mean().iloc[-1]
+        return avg_width < 0.01 * df['close'].iloc[-1]
+    except Exception as e:
+        logging.error(f"Error calculating suppression: {e}")
+        return True
 
 def fetch_ema(df, length=200):
     return EMAIndicator(df['close'], length).ema_indicator().iloc[-1]
@@ -80,79 +87,90 @@ def check_trend(symbol, interval):
     return df['close'].iloc[-1] > ema_200
 
 def volume_spike(df):
-    vol = df['volume'].iloc[-20:]
-    mean_vol = vol.mean()
-    std_vol = vol.std()
-    current_vol = df['volume'].iloc[-1]
-    return current_vol > mean_vol + 1.5 * std_vol
+    try:
+        vol = df['volume'].iloc[-20:]
+        mean_vol = vol.mean()
+        std_vol = vol.std()
+        current_vol = df['volume'].iloc[-1]
+        return current_vol > mean_vol + 1.5 * std_vol
+    except Exception as e:
+        logging.error(f"Error calculating volume spike: {e}")
+        return False
 
 def rsi_divergence(df):
-    rsi_vals = RSIIndicator(df['close']).rsi().iloc[-15:]
-    lows_price = df['low'].iloc[-15:]
-    if len(rsi_vals) < 14 or len(lows_price) < 14:
+    try:
+        rsi_vals = RSIIndicator(df['close']).rsi().iloc[-15:]
+        lows_price = df['low'].iloc[-15:]
+        if len(rsi_vals) < 14 or len(lows_price) < 14:
+            return False
+        price_lows_idx = lows_price.nsmallest(2).index.tolist()
+        if len(price_lows_idx) < 2:
+            return False
+        first, second = price_lows_idx[0], price_lows_idx[1]
+        price_condition = lows_price.loc[first] > lows_price.loc[second]
+        rsi_condition = rsi_vals.loc[first] < rsi_vals.loc[second]
+        return price_condition and rsi_condition
+    except Exception as e:
+        logging.error(f"Error detecting RSI divergence: {e}")
         return False
-    price_lows_idx = lows_price.nsmallest(2).index.tolist()
-    if len(price_lows_idx) < 2:
-        return False
-    first, second = price_lows_idx[0], price_lows_idx[1]
-    price_condition = lows_price.loc[first] > lows_price.loc[second]
-    rsi_condition = rsi_vals.loc[first] < rsi_vals.loc[second]
-    return price_condition and rsi_condition
 
 def analyze(symbol, interval, tsl_percent):
     df = fetch_ohlcv(symbol, interval)
     if df.empty or len(df) < 20:
         return None
-    close = df['close']
-    high = df['high']
-    low = df['low']
-    rsi = RSIIndicator(close).rsi().iloc[-1]
-    stoch = StochasticOscillator(high, low, close)
-    k = stoch.stoch().iloc[-1]
-    d = stoch.stoch_signal().iloc[-1]
-    bb = BollingerBands(close)
-    lower = bb.bollinger_lband().iloc[-1]
-    upper = bb.bollinger_hband().iloc[-1]
-    last = close.iloc[-1]
-    vol = volume_spike(df)
-    trend = check_trend(symbol, "1h" if interval == "15m" else "4h" if interval == "1h" else "1w")
-    suppressed = is_suppressed(df)
-    div = rsi_divergence(df)
-    atr = AverageTrueRange(high, low, close).average_true_range().iloc[-1]
-    recent_low = low.iloc[-5:].min()
-    initial_sl = min(recent_low - atr * 0.5, lower - atr * 0.5)
-    key = f"{symbol}_{interval}"
-    prev_high = highs_tracker.get(key, last)
-    new_high = max(prev_high, last)
-    tsl_trigger = new_high * (1 - tsl_percent)
-    tsl_hit = last < tsl_trigger
-    if vol and trend and not suppressed:
-        highs_tracker[key] = last if last > prev_high else prev_high
-    elif not tsl_hit:
-        highs_tracker[key] = new_high
+    try:
+        close = df['close']
+        high = df['high']
+        low = df['low']
+        rsi = RSIIndicator(close).rsi().iloc[-1]
+        stoch = StochasticOscillator(high, low, close)
+        k = stoch.stoch().iloc[-1]
+        d = stoch.stoch_signal().iloc[-1]
+        bb = BollingerBands(close)
+        lower = bb.bollinger_lband().iloc[-1]
+        upper = bb.bollinger_hband().iloc[-1]
+        last = close.iloc[-1]
+        vol = volume_spike(df)
+        trend = check_trend(symbol, "1h" if interval == "15m" else "4h" if interval == "1h" else "1w")
+        suppressed = is_suppressed(df)
+        div = rsi_divergence(df)
+        atr = AverageTrueRange(high, low, close).average_true_range().iloc[-1]
+        recent_low = low.iloc[-5:].min()
+        initial_sl = min(recent_low - atr * 0.5, lower - atr * 0.5)
+        key = f"{symbol}_{interval}"
+        prev_high = highs_tracker.get(key, last)
+        new_high = max(prev_high, last)
+        tsl_trigger = new_high * (1 - tsl_percent)
+        tsl_hit = last < tsl_trigger
+        if vol and trend and not suppressed:
+            highs_tracker[key] = last if last > prev_high else prev_high
+        elif not tsl_hit:
+            highs_tracker[key] = new_high
 
-    # confidence scoring
-    confidence = 0
-    confidence += 20 if vol else 0
-    confidence += 20 if trend else 0
-    confidence += 15 if not suppressed else 0
-    confidence += 15 if div else 0
-    confidence += 15 if rsi < 30 else 0
-    confidence += 15 if k < 20 and d < 20 else 0
-    confidence = min(confidence, 100)
-    entry = confidence >= 70
-    tp = last >= upper and k > 80 and d > 80
+        confidence = 0
+        confidence += 20 if vol else 0
+        confidence += 20 if trend else 0
+        confidence += 15 if not suppressed else 0
+        confidence += 15 if div else 0
+        confidence += 15 if rsi < 30 else 0
+        confidence += 15 if k < 20 and d < 20 else 0
+        confidence = min(confidence, 100)
+        entry = confidence >= 70
+        tp = last >= upper and k > 80 and d > 80
 
-    return {
-        'symbol': symbol, 'interval': interval, 'price': round(last, 6),
-        'rsi': round(rsi, 2), 'stoch_k': round(k, 2), 'stoch_d': round(d, 2),
-        'entry': entry, 'tp': tp, 'tsl_hit': tsl_hit, 'trend': trend,
-        'suppressed': suppressed, 'volume_spike': vol,
-        'bb_upper': round(upper, 6), 'bb_lower': round(lower, 6),
-        'tsl_level': round(tsl_trigger, 6), 'highest': round(new_high, 6),
-        'initial_sl': round(initial_sl, 6), 'divergence': div,
-        'confidence': confidence
-    }
+        return {
+            'symbol': symbol, 'interval': interval, 'price': round(last, 6),
+            'rsi': round(rsi, 2), 'stoch_k': round(k, 2), 'stoch_d': round(d, 2),
+            'entry': entry, 'tp': tp, 'tsl_hit': tsl_hit, 'trend': trend,
+            'suppressed': suppressed, 'volume_spike': vol,
+            'bb_upper': round(upper, 6), 'bb_lower': round(lower, 6),
+            'tsl_level': round(tsl_trigger, 6), 'highest': round(new_high, 6),
+            'initial_sl': round(initial_sl, 6), 'divergence': div,
+            'confidence': confidence
+        }
+    except Exception as e:
+        logging.error(f"Error analyzing {symbol} on {interval}: {e}")
+        return None
 
 def get_time():
     tz = pytz.timezone("Asia/Kolkata")
@@ -208,6 +226,8 @@ async def send_telegram_message(bot_token, chat_id, message):
     data = {'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'}
     try:
         resp = requests.post(url, data=data)
+        if resp.status_code != 200:
+            logging.error(f"Telegram error {resp.status_code}: {resp.text}")
         return resp.json()
     except Exception as e:
         logging.error(f"Telegram send error: {e}")
@@ -217,42 +237,35 @@ async def main_loop():
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     SYMBOLS = [
-    # ✅ High‑Cap Halal
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
-    "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT",
-    "TRXUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT",
-    "EGLDUSDT", "XLMUSDT", "FILUSDT",
-
-    # ✅ Mid‑Cap Halal
-    "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT", "FETUSDT",
-    "RNDRUSDT", "ARUSDT", "GRTUSDT", "LDOUSDT", "STXUSDT",
-    "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "ZILUSDT",
-    "SKLUSDT", "KAVAUSDT", "ANKRUSDT", "ENSUSDT", "FLUXUSDT",
-    "SFPUSDT",
-
-    # ✅ Low‑Cap Gems Halal
-    "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT",
-    "MKRUSDT", "COTIUSDT", "REQUSDT", "PENDLEUSDT",
-    "ACHUSDT", "LOOMUSDT", "LINAUSDT", "NMRUSDT", "IDUSDT",
-
-    # ⚠️ Grey‑Listed (use responsibly)
-    "DOGEUSDT"
-]
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
+        "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT",
+        "TRXUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT",
+        "EGLDUSDT", "XLMUSDT", "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT",
+        "INJUSDT", "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT", "LDOUSDT",
+        "STXUSDT", "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "ZILUSDT",
+        "SKLUSDT", "KAVAUSDT", "ANKRUSDT", "ENSUSDT", "FLUXUSDT", "SFPUSDT",
+        "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "COTIUSDT",
+        "REQUSDT", "PENDLEUSDT", "ACHUSDT", "LOOMUSDT", "LINAUSDT", "NMRUSDT",
+        "IDUSDT", "DOGEUSDT"
+    ]
     intervals = {"15m": 0.21, "1h": 0.25, "1d": 0.35}
     while True:
-        for symbol in symbols:
+        for symbol in SYMBOLS:
             for interval, tsl_percent in intervals.items():
-                data = analyze(symbol, interval, tsl_percent)
-                if data:
-                    if data['entry']:
-                        msg = entry_msg(data)
-                        await send_telegram_message(bot_token, chat_id, msg)
-                    elif data['tp']:
-                        msg = tp_msg(data)
-                        await send_telegram_message(bot_token, chat_id, msg)
-                    elif data['tsl_hit']:
-                        msg = tsl_msg(data)
-                        await send_telegram_message(bot_token, chat_id, msg)
+                try:
+                    data = analyze(symbol, interval, tsl_percent)
+                    if data:
+                        if data['entry']:
+                            msg = entry_msg(data)
+                            await send_telegram_message(bot_token, chat_id, msg)
+                        elif data['tp']:
+                            msg = tp_msg(data)
+                            await send_telegram_message(bot_token, chat_id, msg)
+                        elif data['tsl_hit']:
+                            msg = tsl_msg(data)
+                            await send_telegram_message(bot_token, chat_id, msg)
+                except Exception as e:
+                    logging.error(f"Main loop error with {symbol} {interval}: {e}")
         await asyncio.sleep(600)
 
 if __name__ == '__main__':
