@@ -1,0 +1,6 @@
+pandas
+requests
+flask
+python-dotenv
+ta
+nest_asyncio
