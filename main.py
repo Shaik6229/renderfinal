@@ -1,8 +1,8 @@
-from alerts import send_alert_if_needed
 from flask import Flask
 from threading import Thread
 import asyncio
 import nest_asyncio
+from logic import start_bot  # ✅ FIX: Correct import from logic.py
 
 app = Flask('')
 
@@ -16,4 +16,4 @@ def run_flask():
 if __name__ == '__main__':
     nest_asyncio.apply()
     Thread(target=run_flask).start()
-    asyncio.run(send_alert_if_needed())
+    start_bot()  # ✅ Launch bot correctly
