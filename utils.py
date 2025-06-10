@@ -67,11 +67,45 @@ def get_time():
     return datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%Y-%m-%d %H:%M:%S")
 
 def categorize_by_mcap(symbol):
-    blue = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"}
-    mid = {"AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "TRXUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT", "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT"}
-    if symbol in blue:
-        return "Blue Chip 💎"
-    elif symbol in mid:
-        return "Mid Cap ⚙️"
-    else:
+    symbol_to_id = {
+        "BTCUSDT": "bitcoin", "ETHUSDT": "ethereum", "BNBUSDT": "binancecoin",
+        "SOLUSDT": "solana", "ADAUSDT": "cardano", "XRPUSDT": "ripple",
+        "AVAXUSDT": "avalanche-2", "DOTUSDT": "polkadot", "MATICUSDT": "matic-network",
+        "NEARUSDT": "near", "TRXUSDT": "tron", "ATOMUSDT": "cosmos",
+        "LTCUSDT": "litecoin", "LINKUSDT": "chainlink", "BCHUSDT": "bitcoin-cash",
+        "EGLDUSDT": "multiversx", "XLMUSDT": "stellar", "FILUSDT": "filecoin",
+        "APTUSDT": "aptos", "OPUSDT": "optimism", "ARBUSDT": "arbitrum",
+        "INJUSDT": "injective", "SFPUSDT": "safe-palace", "CVCUSDT": "civic",
+        "CTSIUSDT": "cartesi", "BANDUSDT": "band-protocol", "CFXUSDT": "conflux",
+        "ZILUSDT": "zilliqa", "SKLUSDT": "skale", "KAVAUSDT": "kava",
+        "ANKRUSDT": "ankr-network", "ENSUSDT": "ens", "FLUXUSDT": "flux",
+        "ILVUSDT": "ilv", "AGIXUSDT": "singularitynet", "OCEANUSDT": "ocean-protocol",
+        "DYDXUSDT": "dydx", "MKRUSDT": "maker", "COTIUSDT": "coti",
+        "REQUSDT": "request", "PENDLEUSDT": "pendle", "ACHUSDT": "alchemy-pay",
+        "LOOMUSDT": "loom-network", "LINAUSDT": "linear", "NMRUSDT": "numeraire",
+        "IDUSDT": "idu", "ARUSDT": "arweave"
+    }
+
+    coingecko_id = symbol_to_id.get(symbol)
+    if not coingecko_id:
+        return "Low Cap 🧪"
+
+    try:
+        url = "https://api.coingecko.com/api/v3/coins/markets"
+        params = {"vs_currency": "usd", "ids": coingecko_id}
+        res = requests.get(url, params=params, timeout=5)
+        res.raise_for_status()
+        data = res.json()
+        if not data:
+            return "Low Cap 🧪"
+
+        market_cap = data[0].get("market_cap", 0)
+        if market_cap >= 10_000_000_000:
+            return "Blue Chip 💎"
+        elif market_cap >= 1_000_000_000:
+            return "Mid Cap ⚙️"
+        else:
+            return "Low Cap 🧪"
+    except Exception as e:
+        logging.error(f"Market cap fetch error for {symbol}: {e}")
         return "Low Cap 🧪"
