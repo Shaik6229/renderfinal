@@ -16,6 +16,7 @@ def entry_msg(data):
     suggestion = interpret_confidence(data['confidence'])
     return f"""
 🟢 *[ENTRY]* — {data['symbol']} ({data['interval']})
+*Category:* {data['category']}
 *Confidence:* {suggestion}
 RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Price at Lower BB ✅ | Volume Spike {'✅' if data['volume_spike'] else '❌'} | Trend: {'Bullish ✅' if data['trend'] else '❌'}
@@ -34,6 +35,7 @@ def tp_msg(data):
     suggestion = interpret_confidence(min(confidence, 100))
     return f"""
 🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']})
+*Category:* {data['category']}
 *Confidence:* {suggestion}
 Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Price: {data['price']} | Time: {get_time()}
@@ -42,6 +44,7 @@ Price: {data['price']} | Time: {get_time()}
 def tsl_msg(data):
     return f"""
 🔴 [TRAILING STOP HIT] — {data['symbol']} ({data['interval']})
+*Category:* {data['category']}
 Price: {data['price']} fell below TSL level: {data['tsl_level']}
 Time: {get_time()}
 """
