@@ -9,7 +9,9 @@ from alerts import entry_msg, tp_msg, tsl_msg, send_telegram_message
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands, AverageTrueRange
 
-highs_tracker = {} alert_flags = {}
+
+highs_tracker = {}
+alert_flags = {} 
 
 SYMBOLS = [ "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT", "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "TRXUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT", "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT", "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT", "LDOUSDT", "STXUSDT", "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "ZILUSDT", "SKLUSDT", "KAVAUSDT", "ANKRUSDT", "ENSUSDT", "FLUXUSDT", "SFPUSDT", "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "COTIUSDT", "REQUSDT", "PENDLEUSDT", "ACHUSDT", "LOOMUSDT", "LINAUSDT", "NMRUSDT", "IDUSDT", "DOGEUSDT" ]
 
