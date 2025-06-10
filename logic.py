@@ -19,8 +19,10 @@ intervals = {"1h": 0.25, "1d": 0.35}  # TSL by timeframe
 
 def start_bot(): asyncio.run(main_loop())
 
-async def main_loop(): bot_token = os.getenv("TELEGRAM_BOT_TOKEN") chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
+async def main_loop():
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID") 
+    
 while True:
     for symbol in SYMBOLS:
         category = get_market_cap_category(symbol)
