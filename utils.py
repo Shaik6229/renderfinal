@@ -65,3 +65,13 @@ def check_trend(symbol, interval):
 
 def get_time():
     return datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%Y-%m-%d %H:%M:%S")
+
+def categorize_by_mcap(symbol):
+    blue = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"}
+    mid = {"AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "TRXUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT", "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT"}
+    if symbol in blue:
+        return "Blue Chip 💎"
+    elif symbol in mid:
+        return "Mid Cap ⚙️"
+    else:
+        return "Low Cap 🧪"
