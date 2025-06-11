@@ -1,4 +1,4 @@
-import os
+iimport os
 import logging
 from datetime import datetime, timedelta
 import pytz
@@ -254,7 +254,7 @@ async def scan_symbols():
         "SKLUSDT", "KAVAUSDT", "ANKRUSDT", "ENSUSDT", "FLUXUSDT", "SFPUSDT",
         "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "COTIUSDT",
         "REQUSDT", "PENDLEUSDT", "ACHUSDT", "LOOMUSDT", "LINAUSDT", "NMRUSDT",
-        "IDUSDT", "DOGEUSDT"
+        "IDUSDT", "DOGEUSDT", "VETUSDT"
     ]
     
     intervals = {"1h": 30, "1d": 360}
