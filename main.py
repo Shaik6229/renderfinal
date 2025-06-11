@@ -244,7 +244,19 @@ def analyze(symbol, interval, tsl_percent):
         return None
 
 async def scan_symbols():
-    pairs = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT", "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT"]
+    pairs = [
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
+        "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT",
+        "TRXUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT",
+        "EGLDUSDT", "XLMUSDT", "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT",
+        "INJUSDT", "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT", "LDOUSDT",
+        "STXUSDT", "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "ZILUSDT",
+        "SKLUSDT", "KAVAUSDT", "ANKRUSDT", "ENSUSDT", "FLUXUSDT", "SFPUSDT",
+        "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "COTIUSDT",
+        "REQUSDT", "PENDLEUSDT", "ACHUSDT", "LOOMUSDT", "LINAUSDT", "NMRUSDT",
+        "IDUSDT", "DOGEUSDT"
+    ]
+    
     intervals = {"1h": 30, "1d": 360}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
