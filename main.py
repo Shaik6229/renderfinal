@@ -7,7 +7,7 @@ import pandas as pd
 from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
-from ta.volatility import BollingerBands, AverageTrueRange
+from ta.volatility import BollingerBands
 from ta.trend import EMAIndicator
 
 # Setup logging
@@ -149,7 +149,7 @@ RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Price at Lower BB ✅ | Volume Spike {'✅' if data['volume_spike'] else '❌'} | Trend: {'Bullish ✅' if data['trend'] else '❌'}
 Suppression: {'Yes ❌' if data['suppressed'] else 'No ✅'} | RSI Divergence: {'Yes ✅' if data['divergence'] else 'No ❌'}
 Initial SL: {data['initial_sl']}
-TP Target: {data['bb_upper']} | TSL Level: {data['tsl_level']} ({round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
+TP Target: {data['bb_upper']} | Suggested TSL: {data['tsl_level']} (Trail {round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
 Price: {data['price']} | Time: {get_time()}
 """
 
@@ -167,14 +167,6 @@ def tp_msg(data):
 *Confidence:* {suggestion}
 Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Price: {data['price']} | Time: {get_time()}
-"""
-
-def tsl_msg(data):
-    category = categorize_by_mcap(data['symbol'])
-    return f"""
-🔴 [TRAILING STOP HIT] — {data['symbol']} ({data['interval']}) [{category}]
-Price: {data['price']} fell below TSL level: {data['tsl_level']}
-Time: {get_time()}
 """
 
 async def send_telegram_message(bot_token, chat_id, message):
@@ -204,7 +196,6 @@ def analyze(symbol, interval, tsl_percent):
         return None
 
     try:
-        # Indicators
         rsi = RSIIndicator(df['close']).rsi().iloc[-1]
         stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
         stoch_k = stoch.stoch().iloc[-1]
@@ -217,32 +208,22 @@ def analyze(symbol, interval, tsl_percent):
         suppressed = is_suppressed(df)
         vol_spike = volume_spike(df)
         divergence = rsi_divergence(df)
-
         entry = (price <= bb_lower) and (rsi < 35) and (stoch_k < 30 and stoch_d < 30) and trend and not suppressed and vol_spike
         tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
-        
-        # TSL Logic
         highest = df['high'].max()
         tsl_level = highest * (1 - tsl_percent)
-        tsl_hit = price <= tsl_level
-
-        # Initial stop-loss
         initial_sl = df['low'].iloc[-5:].min()
-
-        # Confidence Score
         confidence = 0
         confidence += 20 if trend else 0
         confidence += 20 if vol_spike else 0
         confidence += 20 if not suppressed else 0
         confidence += 20 if divergence else 0
         confidence += 20 if entry else 0
-
         return {
             'symbol': symbol,
             'interval': interval,
             'entry': entry,
             'tp': tp,
-            'tsl_hit': tsl_hit,
             'confidence': confidence,
             'rsi': round(rsi, 2),
             'stoch_k': round(stoch_k, 2),
@@ -258,28 +239,15 @@ def analyze(symbol, interval, tsl_percent):
             'highest': round(highest, 4),
             'tsl_level': round(tsl_level, 4),
         }
-
     except Exception as e:
         logging.error(f"Error analyzing {symbol} {interval}: {e}")
         return None
 
 async def scan_symbols():
-    pairs = [
-        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
-        "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT",
-        "TRXUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT",
-        "EGLDUSDT", "XLMUSDT", "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT",
-        "INJUSDT", "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT", "LDOUSDT",
-        "STXUSDT", "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "ZILUSDT",
-        "SKLUSDT", "KAVAUSDT", "ANKRUSDT", "ENSUSDT", "FLUXUSDT", "SFPUSDT",
-        "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "COTIUSDT",
-        "REQUSDT", "PENDLEUSDT", "ACHUSDT", "LOOMUSDT", "LINAUSDT", "NMRUSDT",
-        "IDUSDT", "DOGEUSDT"
-    ]
+    pairs = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT", "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT"]
     intervals = {"1h": 30, "1d": 360}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
     for symbol in pairs:
         for interval, cooldown in intervals.items():
             try:
@@ -292,17 +260,12 @@ async def scan_symbols():
                 elif data['tp'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
                     msg = tp_msg(data)
                     await send_telegram_message(bot_token, chat_id, msg)
-                elif data['tsl_hit'] and alert_cooldown_passed(symbol, interval, 'tsl', cooldown):
-                    msg = tsl_msg(data)
-                    await send_telegram_message(bot_token, chat_id, msg)
             except Exception as e:
                 logging.error(f"Scan error for {symbol} {interval}: {e}")
 
 async def main_loop():
     while True:
         await scan_symbols()
-
-        # Wait 30 min for 1h scan / 6h for 1d
         await asyncio.sleep(1800)
 
 if __name__ == '__main__':
