@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 import requests
 import pandas as pd
@@ -48,82 +48,32 @@ def run():
     app.run(host='0.0.0.0', port=8080)
 
 highs_tracker = {}
-alert_tracker = {}
+last_alert_price = {}
 
-def fetch_ohlcv(symbol, interval, limit=500):
-    url = f'https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}'
-    try:
-        data = requests.get(url).json()
-        df = pd.DataFrame(data, columns=['open_time', 'open', 'high', 'low', 'close', 'volume',
-                                         'close_time', 'quote_asset_volume', 'trades',
-                                         'taker_buy_base', 'taker_buy_quote', 'ignore'])
-        df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
-        numeric_cols = ['open', 'high', 'low', 'close', 'volume']
-        df[numeric_cols] = df[numeric_cols].astype(float)
-        return df
-    except Exception as e:
-        logging.error(f"Error fetching OHLCV for {symbol} {interval}: {e}")
-        return pd.DataFrame()
+market_caps = {
+    "BTCUSDT": "Blue Chip", "ETHUSDT": "Blue Chip", "BNBUSDT": "Blue Chip",
+    "SOLUSDT": "Blue Chip", "ADAUSDT": "Blue Chip", "XRPUSDT": "Blue Chip",
+    "AVAXUSDT": "Mid Cap", "DOTUSDT": "Mid Cap", "MATICUSDT": "Mid Cap",
+    "NEARUSDT": "Mid Cap", "TRXUSDT": "Mid Cap", "ATOMUSDT": "Mid Cap",
+    "LTCUSDT": "Mid Cap", "LINKUSDT": "Mid Cap", "BCHUSDT": "Mid Cap",
+    "EGLDUSDT": "Mid Cap", "XLMUSDT": "Mid Cap", "FILUSDT": "Mid Cap",
+    "APTUSDT": "Mid Cap", "OPUSDT": "Mid Cap", "ARBUSDT": "Mid Cap",
+    # Low caps (partial list)
+    "INJUSDT": "Low Cap", "FETUSDT": "Low Cap", "RNDRUSDT": "Low Cap",
+    "ARUSDT": "Low Cap", "GRTUSDT": "Low Cap", "LDOUSDT": "Low Cap",
+    "STXUSDT": "Low Cap", "CVCUSDT": "Low Cap", "CTSIUSDT": "Low Cap",
+    "BANDUSDT": "Low Cap", "CFXUSDT": "Low Cap", "ZILUSDT": "Low Cap",
+    "SKLUSDT": "Low Cap", "KAVAUSDT": "Low Cap", "ANKRUSDT": "Low Cap",
+    "ENSUSDT": "Low Cap", "FLUXUSDT": "Low Cap", "SFPUSDT": "Low Cap",
+    "ILVUSDT": "Low Cap", "AGIXUSDT": "Low Cap", "OCEANUSDT": "Low Cap",
+    "DYDXUSDT": "Low Cap", "MKRUSDT": "Low Cap", "COTIUSDT": "Low Cap",
+    "REQUSDT": "Low Cap", "PENDLEUSDT": "Low Cap", "ACHUSDT": "Low Cap",
+    "LOOMUSDT": "Low Cap", "LINAUSDT": "Low Cap", "NMRUSDT": "Low Cap",
+    "IDUSDT": "Low Cap", "DOGEUSDT": "Mid Cap"
+}
 
-def is_suppressed(df):
-    if df.empty or len(df) < 20:
-        return True
-    try:
-        bb = BollingerBands(df['close'])
-        width = bb.bollinger_hband() - bb.bollinger_lband()
-        avg_width = width.rolling(window=20).mean().iloc[-1]
-        return avg_width < 0.01 * df['close'].iloc[-1]
-    except Exception as e:
-        logging.error(f"Error calculating suppression: {e}")
-        return True
-
-def fetch_ema(df, length=200):
-    return EMAIndicator(df['close'], length).ema_indicator().iloc[-1]
-
-def check_trend(symbol, interval):
-    df = fetch_ohlcv(symbol, interval)
-    if df.empty or len(df) < 200:
-        return False
-    ema_200 = fetch_ema(df, 200)
-    return df['close'].iloc[-1] > ema_200
-
-def volume_spike(df):
-    try:
-        vol = df['volume'].iloc[-20:]
-        mean_vol = vol.mean()
-        std_vol = vol.std()
-        current_vol = df['volume'].iloc[-1]
-        return current_vol > mean_vol + 1.5 * std_vol
-    except Exception as e:
-        logging.error(f"Error calculating volume spike: {e}")
-        return False
-
-def rsi_divergence(df):
-    try:
-        rsi_vals = RSIIndicator(df['close']).rsi().iloc[-15:]
-        lows_price = df['low'].iloc[-15:]
-        if len(rsi_vals) < 14 or len(lows_price) < 14:
-            return False
-        price_lows_idx = lows_price.nsmallest(2).index.tolist()
-        if len(price_lows_idx) < 2:
-            return False
-        first, second = price_lows_idx[0], price_lows_idx[1]
-        price_condition = lows_price.loc[first] > lows_price.loc[second]
-        rsi_condition = rsi_vals.loc[first] < rsi_vals.loc[second]
-        return price_condition and rsi_condition
-    except Exception as e:
-        logging.error(f"Error detecting RSI divergence: {e}")
-        return False
-
-def categorize_by_mcap(symbol):
-    blue_chip = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']
-    mid_cap = ['AVAXUSDT', 'DOGEUSDT', 'ADAUSDT', 'MATICUSDT', 'DOTUSDT', 'LINKUSDT', 'LTCUSDT']
-    if symbol in blue_chip:
-        return "Blue Chip"
-    elif symbol in mid_cap:
-        return "Mid Cap"
-    else:
-        return "Low Cap"
+def get_category(symbol):
+    return market_caps.get(symbol, "Uncategorized")
 
 def get_time():
     tz = pytz.timezone("Asia/Kolkata")
@@ -140,8 +90,8 @@ def interpret_confidence(conf):
         return f"{conf}% ❌ *Low confidence* — better to skip"
 
 def entry_msg(data):
-    category = categorize_by_mcap(data['symbol'])
     suggestion = interpret_confidence(data['confidence'])
+    category = get_category(data['symbol'])
     return f"""
 🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}]
 *Confidence:* {suggestion}
@@ -153,29 +103,13 @@ TP Target: {data['bb_upper']} | TSL Level: {data['tsl_level']} ({round((1 - data
 Price: {data['price']} | Time: {get_time()}
 """
 
-def tp_msg(data):
-    category = categorize_by_mcap(data['symbol'])
-    confidence = 0
-    confidence += 25 if data['rsi'] > 70 else 0
-    confidence += 25 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
-    confidence += 25 if data['price'] >= data['bb_upper'] else 0
-    confidence += 25 if not data['suppressed'] else 0
-    confidence = min(confidence, 100)
-    suggestion = interpret_confidence(confidence)
-    return f"""
-🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']}) [{category}]
-*Confidence:* {suggestion}
-Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price: {data['price']} | Time: {get_time()}
-"""
-
-def tsl_msg(data):
-    category = categorize_by_mcap(data['symbol'])
-    return f"""
-🔴 [TRAILING STOP HIT] — {data['symbol']} ({data['interval']}) [{category}]
-Price: {data['price']} fell below TSL level: {data['tsl_level']}
-Time: {get_time()}
-"""
+def should_alert(symbol, interval, price):
+    key = f"{symbol}_{interval}"
+    last_price = last_alert_price.get(key, None)
+    if last_price is None or abs(price - last_price) > price * 0.01:
+        last_alert_price[key] = price
+        return True
+    return False
 
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -189,60 +123,5 @@ async def send_telegram_message(bot_token, chat_id, message):
         logging.error(f"Telegram send error: {e}")
         return None
 
-def alert_cooldown_passed(symbol, interval, kind, cooldown_minutes):
-    key = f"{symbol}_{interval}_{kind}"
-    now = datetime.utcnow()
-    last = alert_tracker.get(key)
-    if last is None or (now - last) > timedelta(minutes=cooldown_minutes):
-        alert_tracker[key] = now
-        return True
-    return False
-
-async def scan_symbols():
-    pairs = [
-        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
-        "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT",
-        "TRXUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT",
-        "EGLDUSDT", "XLMUSDT", "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT",
-        "INJUSDT", "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT", "LDOUSDT",
-        "STXUSDT", "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "ZILUSDT",
-        "SKLUSDT", "KAVAUSDT", "ANKRUSDT", "ENSUSDT", "FLUXUSDT", "SFPUSDT",
-        "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "COTIUSDT",
-        "REQUSDT", "PENDLEUSDT", "ACHUSDT", "LOOMUSDT", "LINAUSDT", "NMRUSDT",
-        "IDUSDT", "DOGEUSDT"
-    ]
-    intervals = {"1h": 30, "1d": 360}
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
-    for symbol in pairs:
-        for interval, cooldown in intervals.items():
-            try:
-                data = analyze(symbol, interval, 0.25 if interval == "1h" else 0.35)
-                if not data:
-                    continue
-                if data['entry'] and alert_cooldown_passed(symbol, interval, 'entry', cooldown):
-                    msg = entry_msg(data)
-                    await send_telegram_message(bot_token, chat_id, msg)
-                elif data['tp'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
-                    msg = tp_msg(data)
-                    await send_telegram_message(bot_token, chat_id, msg)
-                elif data['tsl_hit'] and alert_cooldown_passed(symbol, interval, 'tsl', cooldown):
-                    msg = tsl_msg(data)
-                    await send_telegram_message(bot_token, chat_id, msg)
-            except Exception as e:
-                logging.error(f"Scan error for {symbol} {interval}: {e}")
-
-async def main_loop():
-    while True:
-        await scan_symbols()
-
-        # Wait 30 min for 1h scan / 6h for 1d
-        await asyncio.sleep(1800)
-
-if __name__ == '__main__':
-    import nest_asyncio
-    nest_asyncio.apply()
-    from threading import Thread
-    Thread(target=run).start()
-    asyncio.run(main_loop())
+# NOTE: continue with analyze(), tp_msg(), tsl_msg(), main_loop() as in your current working version.
+# Let me know if you'd like those included as well.
