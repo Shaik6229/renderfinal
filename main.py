@@ -127,7 +127,7 @@ def categorize_by_mcap(symbol):
 
 def get_time():
     tz = pytz.timezone("Asia/Kolkata")
-    return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(tz).strftime("%Y-%m-%d %I:%M:%S %p")
 
 def interpret_confidence(conf):
     if conf >= 85:
