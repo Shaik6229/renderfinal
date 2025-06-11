@@ -254,7 +254,7 @@ async def scan_symbols():
         "SKLUSDT", "KAVAUSDT", "ANKRUSDT", "ENSUSDT", "FLUXUSDT", "SFPUSDT",
         "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "COTIUSDT",
         "REQUSDT", "PENDLEUSDT", "ACHUSDT", "LOOMUSDT", "LINAUSDT", "NMRUSDT",
-        "IDUSDT", "DOGEUSDT", "VETUSDT"
+        "IDUSDT", "DOGEUSDT", "VETUSDT", "TAOUSDT", "VIRTUALUSDT"
     ]
     
     intervals = {"1h": 30, "1d": 360}
