@@ -280,9 +280,14 @@ async def main_loop():
         await scan_symbols()
         await asyncio.sleep(1800)
 
-if __name__ == '__main__':
+# --- FINAL EXECUTION BLOCK ---
+from threading import Thread
+
+def start_bot():
     import nest_asyncio
     nest_asyncio.apply()
-    from threading import Thread
-    Thread(target=run).start()
     asyncio.run(main_loop())
+
+if __name__ == '__main__':
+    Thread(target=run).start()
+    Thread(target=start_bot).start()
