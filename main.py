@@ -1,3 +1,4 @@
+# --- BEGINNING OF FILE ---
 import os
 import logging
 from datetime import datetime, timedelta
@@ -92,11 +93,8 @@ def volume_spike(df, symbol):
     mean_vol = vol.mean()
     std_vol = vol.std()
     current_vol = df['volume'].iloc[-1]
-
-    # Adjust threshold based on symbol category
     low_cap_symbols = ['CVCUSDT', 'CTSIUSDT', 'BANDUSDT', 'KAVAUSDT', 'FLUXUSDT', 'SFPUSDT', 'ILVUSDT', 'AGIXUSDT']
     multiplier = 1.2 if symbol in low_cap_symbols else 1.5
-
     return current_vol > mean_vol + multiplier * std_vol
 
 def rsi_divergence(df):
@@ -140,41 +138,12 @@ def interpret_confidence(conf):
     else:
         return f"{conf}% ❌ *Low confidence* — better to skip"
 
-def entry_msg(data):
-    category = categorize_by_mcap(data['symbol'])
-    suggestion = interpret_confidence(data['confidence'])
-    return f"""
-🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}]
-*Confidence:* {suggestion}
-RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price at Lower BB ✅ | Volume Spike {'✅' if data['volume_spike'] else '❌'} | Trend: {'Bullish ✅' if data['trend'] else '❌'}
-Suppression: {'Yes ❌' if data['suppressed'] else 'No ✅'} | RSI Divergence: {'Yes ✅' if data['divergence'] else 'No ❌'}
-Initial SL: {data['initial_sl']}
-TP Target: {data['bb_upper']} | Suggested TSL: {data['tsl_level']} (Trail {round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
-Price: {data['price']} | Time: {get_time()}
-"""
-
-def tp_msg(data):
-    category = categorize_by_mcap(data['symbol'])
-    confidence = 0
-    confidence += 25 if data['rsi'] > 70 else 0
-    confidence += 25 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
-    confidence += 25 if data['price'] >= data['bb_upper'] else 0
-    confidence += 25 if not data['suppressed'] else 0
-    confidence = min(confidence, 100)
-    suggestion = interpret_confidence(confidence)
-    return f"""
-🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']}) [{category}]
-*Confidence:* {suggestion}
-Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price: {data['price']} | Time: {get_time()}
-"""
-
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'}
     try:
         resp = requests.post(url, data=data)
+        logging.info(f"[TELEGRAM] Sent message to {chat_id}: {message[:60]}...")
         if resp.status_code != 200:
             logging.error(f"Telegram error {resp.status_code}: {resp.text}")
         return resp.json()
@@ -189,11 +158,13 @@ def alert_cooldown_passed(symbol, interval, kind, cooldown_minutes):
     if last is None or (now - last) > timedelta(minutes=cooldown_minutes):
         alert_tracker[key] = now
         return True
+    logging.info(f"[COOLDOWN] Skipping alert for {key}, last at {last}, now {now}")
     return False
 
 def analyze(symbol, interval, tsl_percent):
     df = fetch_ohlcv(symbol, interval)
     if df.empty or len(df) < 100:
+        logging.warning(f"[{symbol}-{interval}] Insufficient data.")
         return None
 
     try:
@@ -214,12 +185,18 @@ def analyze(symbol, interval, tsl_percent):
         highest = df['high'].max()
         tsl_level = highest * (1 - tsl_percent)
         initial_sl = df['low'].iloc[-5:].min()
-        confidence = 0
-        confidence += 20 if trend else 0
-        confidence += 20 if vol_spike else 0
-        confidence += 20 if not suppressed else 0
-        confidence += 20 if divergence else 0
-        confidence += 20 if entry else 0
+        confidence = sum([
+            20 if trend else 0,
+            20 if vol_spike else 0,
+            20 if not suppressed else 0,
+            20 if divergence else 0,
+            20 if entry else 0
+        ])
+
+        logging.info(f"[{symbol} - {interval}] RSI: {rsi:.2f}, StochK: {stoch_k:.2f}, StochD: {stoch_d:.2f}, Price: {price:.2f}")
+        logging.info(f"[{symbol} - {interval}] Trend: {trend}, Suppressed: {suppressed}, Volume Spike: {vol_spike}, Divergence: {divergence}")
+        logging.info(f"[{symbol} - {interval}] Entry: {entry}, TP: {tp}, Confidence: {confidence}")
+
         return {
             'symbol': symbol,
             'interval': interval,
@@ -245,41 +222,35 @@ def analyze(symbol, interval, tsl_percent):
         return None
 
 async def scan_symbols():
-    
     pairs = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
-    "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "ATOMUSDT",
-    "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT",
-    "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT",
-    "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT", "STXUSDT",
-    "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "KAVAUSDT",
-    "ENSUSDT", "FLUXUSDT", "SFPUSDT", "ILVUSDT", "AGIXUSDT",
-    "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "IDUSDT", "TAOUSDT"
-]
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
+        "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "ATOMUSDT",
+        "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT",
+        "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT",
+        "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT", "STXUSDT",
+        "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "KAVAUSDT",
+        "ENSUSDT", "FLUXUSDT", "SFPUSDT", "ILVUSDT", "AGIXUSDT",
+        "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "IDUSDT", "TAOUSDT"
+    ]
     intervals = {"1h": 30, "1d": 360}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
     for symbol in pairs:
         for interval, cooldown in intervals.items():
-            try:
-                data = analyze(symbol, interval, 0.25 if interval == "1h" else 0.35)
-                if not data:
-                    continue
-                if data['entry'] and alert_cooldown_passed(symbol, interval, 'entry', cooldown):
-                    msg = entry_msg(data)
-                    await send_telegram_message(bot_token, chat_id, msg)
-                elif data['tp'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
-                    msg = tp_msg(data)
-                    await send_telegram_message(bot_token, chat_id, msg)
-            except Exception as e:
-                logging.error(f"Scan error for {symbol} {interval}: {e}")
+            data = analyze(symbol, interval, 0.25 if interval == "1h" else 0.35)
+            if not data:
+                continue
+            if data['entry'] and alert_cooldown_passed(symbol, interval, 'entry', cooldown):
+                await send_telegram_message(bot_token, chat_id, entry_msg(data))
+            elif data['tp'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
+                await send_telegram_message(bot_token, chat_id, tp_msg(data))
 
 async def main_loop():
     while True:
         await scan_symbols()
         await asyncio.sleep(1800)
 
-# --- FINAL EXECUTION BLOCK ---
 from threading import Thread
 
 def start_bot():
@@ -290,3 +261,4 @@ def start_bot():
 if __name__ == '__main__':
     Thread(target=run).start()
     Thread(target=start_bot).start()
+# --- END OF FILE ---
