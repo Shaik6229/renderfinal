@@ -11,7 +11,7 @@ from ta.volatility import BollingerBands
 from ta.trend import EMAIndicator
 
 # --- Toggle Debug Logging ---
-DEBUG = True  # Set to True for full debug logs
+DEBUG = False  # Set to True for full debug logs
 log_level = logging.DEBUG if DEBUG else logging.INFO
 logging.basicConfig(level=log_level, format="%(asctime)s — %(levelname)s — %(message)s")
 
