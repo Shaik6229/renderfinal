@@ -87,16 +87,17 @@ def check_trend(symbol, interval):
     ema_200 = fetch_ema(df, 200)
     return df['close'].iloc[-1] > ema_200
 
-def volume_spike(df):
-    try:
-        vol = df['volume'].iloc[-20:]
-        mean_vol = vol.mean()
-        std_vol = vol.std()
-        current_vol = df['volume'].iloc[-1]
-        return current_vol > mean_vol + 1.5 * std_vol
-    except Exception as e:
-        logging.error(f"Error calculating volume spike: {e}")
-        return False
+def volume_spike(df, symbol):
+    vol = df['volume'].iloc[-20:]
+    mean_vol = vol.mean()
+    std_vol = vol.std()
+    current_vol = df['volume'].iloc[-1]
+
+    # Adjust threshold based on symbol category
+    low_cap_symbols = ['CVCUSDT', 'CTSIUSDT', 'BANDUSDT', 'KAVAUSDT', 'FLUXUSDT', 'SFPUSDT', 'ILVUSDT', 'AGIXUSDT']
+    multiplier = 1.2 if symbol in low_cap_symbols else 1.5
+
+    return current_vol > mean_vol + multiplier * std_vol
 
 def rsi_divergence(df):
     try:
@@ -206,7 +207,7 @@ def analyze(symbol, interval, tsl_percent):
         price = df['close'].iloc[-1]
         trend = check_trend(symbol, interval)
         suppressed = is_suppressed(df)
-        vol_spike = volume_spike(df)
+        vol_spike = volume_spike(df, symbol)
         divergence = rsi_divergence(df)
         entry = (price <= bb_lower) and (rsi < 35) and (stoch_k < 30 and stoch_d < 30) and trend and not suppressed and vol_spike
         tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
