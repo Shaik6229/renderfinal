@@ -615,7 +615,7 @@ def analyze(symbol, interval, tsl_percent):
             'bb_upper': round(bb_upper, 4),
             'bb_lower': round(bb_lower, 4),
             'trend': trend,
-            'end_15m': trend_15m,
+            'trend_15m': trend_15m,
             'htf_1h': htf_1h,
             'htf_1d': htf_1d,
             'suppressed': suppressed,
