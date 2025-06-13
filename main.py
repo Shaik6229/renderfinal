@@ -11,7 +11,7 @@ from ta.volatility import BollingerBands, AverageTrueRange
 from ta.trend import EMAIndicator, MACD
 
 # --- Toggle Debug Logging ---
-DEBUG = False  # Set to True for full debug logs
+DEBUG = True  # Set to True for full debug logs
 log_level = logging.DEBUG if DEBUG else logging.INFO
 logging.basicConfig(format=' %(levelname)s - %(message)s', level=log_level)
 
@@ -235,6 +235,19 @@ def analyze(symbol, interval, tsl_percent):
 
         highest = df['high'].max()
 
+        if DEBUG:
+            logging.debug(f"[{symbol} | {interval}] Entry Condition Breakdown:")
+            logging.debug(f"→ Price <= BB Lower: {price <= bb_lower}")
+            logging.debug(f"→ RSI < 35: {rsi < 35}")
+            logging.debug(f"→ Stoch %K < 30: {stoch_k < 30}")
+            logging.debug(f"→ Stoch %D < 30: {stoch_d < 30}")
+            logging.debug(f"→ Trend (EMA200): {trend}")
+            logging.debug(f"→ Not Suppressed: {not suppressed}")
+            logging.debug(f"→ Volume Spike: {vol_spike}")
+            logging.debug(f"→ MACD Trending Up: {macd_trending_up}")
+            logging.debug(f"→ Close < BB Lower: {df.iloc[-1]['close'] < bb_lower}")
+            logging.debug(f"→ ATR Strong (Candle > ATR): {atr_strong}")
+
         entry = (
             price <= bb_lower and
             rsi < 35 and
@@ -248,6 +261,12 @@ def analyze(symbol, interval, tsl_percent):
         )
 
         tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
+
+        if DEBUG:
+            logging.debug(f"[{symbol} | {interval}] TP Condition Breakdown:")
+            logging.debug(f"→ Price >= BB Upper: {price >= bb_upper}")
+            logging.debug(f"→ RSI > 70: {rsi > 70}")
+            logging.debug(f"→ Stoch %K > 80 and %D > 80: {stoch_k > 80 and stoch_d > 80}")
 
         confidence = 0
         confidence += 20 if trend else 0
@@ -280,8 +299,11 @@ def analyze(symbol, interval, tsl_percent):
             'atr_strong': atr_strong,
             'highest': round(highest, 4)
         }
+
     except Exception as e:
         logging.error(f"Error analyzing {symbol} {interval}: {e}")
+        if DEBUG:
+            logging.debug(f"{symbol} {interval} — Data sample:\n{df.tail()}")
         return None
 
 async def scan_symbols():
