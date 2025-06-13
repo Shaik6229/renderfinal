@@ -216,10 +216,13 @@ def analyze(symbol, interval, tsl_percent):
         bb_lower = bb.bollinger_lband().iloc[-1]
         bb_upper = bb.bollinger_hband().iloc[-1]
         price = df['close'].iloc[-1]
+        candlestick_body = abs(price - df.iloc[-1]["open"])
+
         trend = check_trend(symbol, interval)
         suppressed = is_suppressed(df)
         vol_spike = volume_spike(df, symbol)
         divergence = rsi_divergence(df)
+        adx = ADXIndicator(high=df['high'], low=df['low'], close=df['close'], window=14).adx().iloc[-1]
 
         # Dynamic ATR multiplier based on market cap
         category = categorize_by_mcap(symbol)
@@ -233,10 +236,23 @@ def analyze(symbol, interval, tsl_percent):
         atr = AverageTrueRange(df['high'], df['low'], df['close'], window=14).average_true_range().iloc[-1]
         initial_sl = round(price - atr * atr_multiplier, 4)
 
-        entry = (price <= bb_lower) and (rsi < 35) and (stoch_k < 30 and stoch_d < 30) and trend and not suppressed and vol_spike
-        tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
         highest = df['high'].max()
         tsl_level = highest * (1 - tsl_percent)
+
+        entry = (
+            price <= bb_lower and
+            rsi < 35 and
+            stoch_k < 30 and
+            stoch_d < 30 and
+            trend and
+            not suppressed and
+            vol_spike and
+            candlestick_body > atr and
+            adx > 20 and
+            df.iloc[-1]["close"] < bb_lower
+        )
+
+        tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
 
         confidence = 0
         confidence += 20 if trend else 0
