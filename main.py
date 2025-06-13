@@ -340,7 +340,7 @@ async def scan_symbols_for_intervals(interval_list):
         "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "ATOMUSDT",
         "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT",
         "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT", "FETUSDT",
-        "RNDRUSDT", "CVCUSDT", "CTSIUSDT", "BANDUSDT", "GRTUSDT",
+        "RENDERUSDT", "CVCUSDT", "CTSIUSDT", "BANDUSDT", "GRTUSDT",
         "STXUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT",
         "IDUSDT", "TAOUSDT"
     ]
