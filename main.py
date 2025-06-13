@@ -388,6 +388,104 @@ def analyze(symbol, interval, tsl_percent):
         confidence += 10 if macd_trending_up else 0
         confidence += 10 if atr_strong else 0
         confidence = min(confidence, 100)
+def analyze(symbol, interval, tsl_percent):
+    df = fetch_ohlcv(symbol, interval)
+    if df.empty or len(df) < 100:
+        return None
+
+    try:
+        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+        stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
+        stoch_k = stoch.stoch().iloc[-1]
+        stoch_d = stoch.stoch_signal().iloc[-1]
+        bb = BollingerBands(df['close'])
+
+        bb_lower = bb.bollinger_lband().iloc[-1]
+        bb_upper = bb.bollinger_hband().iloc[-1]
+        price = df['close'].iloc[-1]
+        candlestick_body = abs(price - df.iloc[-1]["open"])
+
+        # --- Trend with HTF Confluence ---
+        trend_15m = check_trend(symbol, interval)
+        htf_1h = check_trend(symbol, "1h") if interval == "15" else True
+        htf_1d = check_trend(symbol, "1d") if interval == "15" else True
+        trend = trend_15m and htf_1h and htf_1d
+
+        suppressed = is_suppressed(df)
+        vol_spike = volume_spike(df, symbol)
+        divergence = rsi_divergence(df)
+
+        macd_indicator = MACD(df['close'])
+        macd = macd_indicator.macd().iloc[-1]
+        macd_signal = macd_indicator.macd_signal().iloc[-1]
+        macd_trending_up = macd > macd_signal and macd > 0
+
+        atr = AverageTrueRange(df['high'], df['low'], df['close'], window=14).average_true_range().iloc[-1]
+        atr_strong = candlestick_body > atr
+
+        highest = df['high'].max()
+
+        # --- Weighted Entry Scoring ---
+        entry_score = 0
+        weights = {
+            'price_below_bb': 15,
+            'rsi_oversold': 15,
+            'stoch_oversold': 10,
+            'trend_ema200': 15,
+            'not_suppressed': 10,
+            'volume_spike': 15,
+            'macd_trending': 10,
+            'close_below_bb': 5,
+            'atr_strong': 5
+        }
+
+        if price <= bb_lower:
+            entry_score += weights['price_below_bb']
+        if rsi < 35:
+            entry_score += weights['rsi_oversold']
+        if stoch_k < 30 and stoch_d < 30:
+            entry_score += weights['stoch_oversold']
+        if trend:
+            entry_score += weights['trend_ema200']
+        if not suppressed:
+            entry_score += weights['not_suppressed']
+        if vol_spike:
+            entry_score += weights['volume_spike']
+        if macd_trending_up:
+            entry_score += weights['macd_trending']
+        if df.iloc[-1]["close"] < bb_lower:
+            entry_score += weights['close_below_bb']
+        if atr_strong:
+            entry_score += weights['atr_strong']
+
+        total_score = sum(weights.values())
+        entry_confidence = round((entry_score / total_score) * 100, 2)
+        entry = entry_confidence >= 70
+
+        # --- TP Logic ---
+        tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
+
+        tp_confidence = 0
+        tp_confidence += 30 if price >= bb_upper else 0
+        tp_confidence += 25 if rsi > 70 else 0
+        tp_confidence += 20 if stoch_k > 80 and stoch_d > 80 else 0
+        tp_confidence += 15 if not suppressed else 0
+        tp_confidence += 10 if macd_trending_up else 0
+        tp_confidence = min(tp_confidence, 100)
+
+        if DEBUG:
+            logging.debug(f"[{symbol} | {interval}] Entry Confidence: {entry_confidence}%")
+            logging.debug(f"[{symbol} | {interval}] TP Confidence: {tp_confidence}%")
+
+        # Secondary confidence (for ranking only)
+        confidence = 0
+        confidence += 20 if trend else 0
+        confidence += 20 if vol_spike else 0
+        confidence += 20 if not suppressed else 0
+        confidence += 20 if divergence else 0
+        confidence += 10 if macd_trending_up else 0
+        confidence += 10 if atr_strong else 0
+        confidence = min(confidence, 100)
 
         return {
             'symbol': symbol,
