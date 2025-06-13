@@ -8,7 +8,7 @@ from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands, AverageTrueRange
-from ta.trend import EMAIndicator, ADXIndicator
+from ta.trend import EMAIndicator, MACD
 
 # --- Toggle Debug Logging ---
 DEBUG = False  # Set to True for full debug logs
@@ -147,7 +147,6 @@ def interpret_confidence(conf):
     else:
         return f"{conf}% ❌ *Low confidence* — better to skip"
 
-def entry_msg(data):
     category = categorize_by_mcap(data['symbol'])
 
     suggestion = interpret_confidence(data['confidence'])
@@ -157,24 +156,27 @@ def entry_msg(data):
 RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Price at Lower BB ✅ | Volume Spike {"✅" if data['volume_spike'] else "❌"} | Trend: {"Bullish ✅" if data['trend'] else "❌"}
 Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"} | RSI Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
-Initial SL: {data['initial_sl']} (ATR x {data['atr_multiplier']}) 
-TP Target: {data['bb_upper']} | Suggested TSL: {data['tsl_level']} (Trail {round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
-Price: {data['price']} | Time: {get_time()}"""    
+MACD: {data['macd']} / Signal: {data['macd_signal']} — {"Trending Up ✅" if data['macd_trending_up'] else "Flat ❌"}
+Candle > ATR: {"Yes ✅" if data['atr_strong'] else "No ❌"} | ATR: {data['atr']}
+Price: {data['price']} | Time: {get_time()}"""
 
 def tp_msg(data):
     category = categorize_by_mcap(data['symbol'])
 
     confidence = 0
+    confidence += 30 if data['price'] >= data['bb_upper'] else 0
     confidence += 25 if data['rsi'] > 70 else 0
-    confidence += 25 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
-    confidence += 25 if data['price'] >= data['bb_upper'] else 0
-    confidence += 25 if not data['suppressed'] else 0
+    confidence += 20 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
+    confidence += 15 if not data['suppressed'] else 0
+    confidence += 10 if data.get('macd_trending_up') else 0
     confidence = min(confidence, 100)
+
     suggestion = interpret_confidence(confidence)
 
     return f"""🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']}) [{category}] 
 *Confidence:* {suggestion}
 Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
+MACD: {data['macd']} / Signal: {data['macd_signal']} — {"Trending Up ✅" if data['macd_trending_up'] else "Flat ❌"}
 Price: {data['price']} | Time: {get_time()}"""    
 
 async def send_telegram_message(bot_token, chat_id, message):
@@ -222,22 +224,16 @@ def analyze(symbol, interval, tsl_percent):
         suppressed = is_suppressed(df)
         vol_spike = volume_spike(df, symbol)
         divergence = rsi_divergence(df)
-        adx = ADXIndicator(high=df['high'], low=df['low'], close=df['close'], window=14).adx().iloc[-1]
 
-        # Dynamic ATR multiplier based on market cap
-        category = categorize_by_mcap(symbol)
-        if category == "Low Cap":
-            atr_multiplier = 1.2
-        elif category == "Mid Cap":
-            atr_multiplier = 1.5
-        else:
-            atr_multiplier = 1.8
+        macd_indicator = MACD(df['close'])
+        macd = macd_indicator.macd().iloc[-1]
+        macd_signal = macd_indicator.macd_signal().iloc[-1]
+        macd_trending_up = macd > macd_signal and macd > 0
 
         atr = AverageTrueRange(df['high'], df['low'], df['close'], window=14).average_true_range().iloc[-1]
-        initial_sl = round(price - atr * atr_multiplier, 4)
+        atr_strong = candlestick_body > atr
 
         highest = df['high'].max()
-        tsl_level = highest * (1 - tsl_percent)
 
         entry = (
             price <= bb_lower and
@@ -247,8 +243,7 @@ def analyze(symbol, interval, tsl_percent):
             trend and
             not suppressed and
             vol_spike and
-            candlestick_body > atr and
-            adx > 20 and
+            macd_trending_up and
             df.iloc[-1]["close"] < bb_lower
         )
 
@@ -259,14 +254,15 @@ def analyze(symbol, interval, tsl_percent):
         confidence += 20 if vol_spike else 0
         confidence += 20 if not suppressed else 0
         confidence += 20 if divergence else 0
-        confidence += 20 if entry else 0
+        confidence += 10 if macd_trending_up else 0
+        confidence += 10 if atr_strong else 0
 
         return {
             'symbol': symbol,
             'interval': interval,
             'entry': entry,
             'tp': tp,
-            'confidence': confidence,
+            'confidence': min(confidence, 100),
             'rsi': round(rsi, 2),
             'stoch_k': round(stoch_k, 2),
             'stoch_d': round(stoch_d, 2),
@@ -277,10 +273,12 @@ def analyze(symbol, interval, tsl_percent):
             'suppressed': suppressed,
             'volume_spike': vol_spike,
             'divergence': divergence,
-            'initial_sl': initial_sl,
-            'atr_multiplier': atr_multiplier,
-            'highest': round(highest, 4),
-            'tsl_level': round(tsl_level, 4),
+            'macd': round(macd, 4),
+            'macd_signal': round(macd_signal, 4),
+            'macd_trending_up': macd_trending_up,
+            'atr': round(atr, 4),
+            'atr_strong': atr_strong,
+            'highest': round(highest, 4)
         }
     except Exception as e:
         logging.error(f"Error analyzing {symbol} {interval}: {e}")
