@@ -189,7 +189,7 @@ def alert_cooldown_passed(symbol, interval, kind, cooldown_minutes):
         alert_tracker[key] = now
         return True
     return False
-
+    
 def analyze(symbol, interval, tsl_percent):
     df = fetch_ohlcv(symbol, interval)
     if df.empty or len(df) < 100:
@@ -208,17 +208,31 @@ def analyze(symbol, interval, tsl_percent):
         suppressed = is_suppressed(df)
         vol_spike = volume_spike(df, symbol)
         divergence = rsi_divergence(df)
+        
+        # Dynamic ATR multiplier based on market cap
+        category = categorize_by_mcap(symbol)
+        if category == "Low Cap":
+            atr_multiplier = 1.2
+        elif category == "Mid Cap":
+            atr_multiplier = 1.5
+        else:
+            atr_multiplier = 1.8
+        
+        atr = AverageTrueRange(df['high'], df['low'], df['close'], window=14).average_true_range().iloc[-1]
+        initial_sl = round(price - atr * atr_multiplier, 4)
+        
         entry = (price <= bb_lower) and (rsi < 35) and (stoch_k < 30 and stoch_d < 30) and trend and not suppressed and vol_spike
         tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
         highest = df['high'].max()
         tsl_level = highest * (1 - tsl_percent)
-        initial_sl = df['low'].iloc[-5:].min()
+        
         confidence = 0
         confidence += 20 if trend else 0
         confidence += 20 if vol_spike else 0
         confidence += 20 if not suppressed else 0
         confidence += 20 if divergence else 0
         confidence += 20 if entry else 0
+        
         return {
             'symbol': symbol,
             'interval': interval,
@@ -235,7 +249,8 @@ def analyze(symbol, interval, tsl_percent):
             'suppressed': suppressed,
             'volume_spike': vol_spike,
             'divergence': divergence,
-            'initial_sl': round(initial_sl, 4),
+            'initial_sl': initial_sl,
+            'atr_multiplier': atr_multiplier,
             'highest': round(highest, 4),
             'tsl_level': round(tsl_level, 4),
         }
