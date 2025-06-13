@@ -334,7 +334,7 @@ def analyze(symbol, interval, tsl_percent):
         return None
 
 
-async def scan_symbols():
+async def scan_symbols_for_intervals(interval_list):
     pairs = [
         "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
         "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "ATOMUSDT",
@@ -344,7 +344,7 @@ async def scan_symbols():
         "STXUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT",
         "IDUSDT", "TAOUSDT"
     ]
-    intervals = {"15": 10, "1h": 30, "1d": 360}
+    intervals = {"15": 10, "1h": 30, "1d": 60}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     for symbol in pairs:
@@ -361,12 +361,20 @@ async def scan_symbols():
                     await send_telegram_message(bot_token, chat_id, msg)
             except Exception as e:
                 logging.error(f"Scan error for {symbol} {interval}: {e}")
-
+                
 async def main_loop():
+    counter = 0
     while True:
-        await scan_symbols()
-        await asyncio.sleep(1800)
+        await scan_symbols_for_intervals(["15"])  # Always scan 15m
 
+        if counter % 2 == 0:
+            await scan_symbols_for_intervals(["1h"])
+
+        if counter % 4 == 0:
+            await scan_symbols_for_intervals(["1d"])
+
+        counter += 1
+        await asyncio.sleep(900)  # Run every 15 minutes
 from threading import Thread
 
 def start_bot():
