@@ -147,37 +147,25 @@ def interpret_confidence(conf):
     else:
         return f"{conf}% ❌ *Low confidence* — better to skip"
 
+def entry_msg(data):
     category = categorize_by_mcap(data['symbol'])
-
-    suggestion = interpret_confidence(data['confidence'])
-
-    return f"""🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}] 
-*Confidence:* {suggestion}
-RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price at Lower BB ✅ | Volume Spike {"✅" if data['volume_spike'] else "❌"} | Trend: {"Bullish ✅" if data['trend'] else "❌"}
-Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"} | RSI Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
-MACD: {data['macd']} / Signal: {data['macd_signal']} — {"Trending Up ✅" if data['macd_trending_up'] else "Flat ❌"}
-Candle > ATR: {"Yes ✅" if data['atr_strong'] else "No ❌"} | ATR: {data['atr']}
-Price: {data['price']} | Time: {get_time()}"""
+    signal = "✅ Strong" if data['entry_confidence'] >= 85 else "⚠️ Moderate" if data['entry_confidence'] >= 70 else "❌ Low"
+    return f"""🟢 ENTRY — {data['symbol']} | {data['interval']} ({category})
+Confidence: {data['entry_confidence']}% {signal}
+→ RSI: {data['rsi']} | Stoch: {data['stoch_k']} / {data['stoch_d']}
+→ BB Lower {"✅" if data['price'] <= data['bb_lower'] else "❌"} | Trend: {"✅" if data['trend'] else "❌"} | Vol Spike: {"✅" if data['volume_spike'] else "❌"} | MACD: {"✅" if data['macd_trending_up'] else "❌"}
+Price: {data['price']} | ATR Strong: {"✅" if data['atr_strong'] else "❌"}
+🕒 {get_time()}"""
 
 def tp_msg(data):
     category = categorize_by_mcap(data['symbol'])
-
-    confidence = 0
-    confidence += 30 if data['price'] >= data['bb_upper'] else 0
-    confidence += 25 if data['rsi'] > 70 else 0
-    confidence += 20 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
-    confidence += 15 if not data['suppressed'] else 0
-    confidence += 10 if data.get('macd_trending_up') else 0
-    confidence = min(confidence, 100)
-
-    suggestion = interpret_confidence(confidence)
-
-    return f"""🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']}) [{category}] 
-*Confidence:* {suggestion}
-Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-MACD: {data['macd']} / Signal: {data['macd_signal']} — {"Trending Up ✅" if data['macd_trending_up'] else "Flat ❌"}
-Price: {data['price']} | Time: {get_time()}"""    
+    signal = "✅ Strong" if data['tp_confidence'] >= 85 else "⚠️ Moderate" if data['tp_confidence'] >= 70 else "❌ Low"
+    return f"""🟡 TP — {data['symbol']} | {data['interval']} ({category})
+Confidence: {data['tp_confidence']}% {signal}
+→ RSI: {data['rsi']} | Stoch: {data['stoch_k']} / {data['stoch_d']}
+→ BB Upper {"✅" if data['price'] >= data['bb_upper'] else "❌"} | MACD: {"✅" if data['macd_trending_up'] else "❌"} | Suppression: {"No ✅" if not data['suppressed'] else "Yes ❌"}
+Price: {data['price']} | High: {data['highest']}
+🕒 {get_time()}"""    
 
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -235,39 +223,59 @@ def analyze(symbol, interval, tsl_percent):
 
         highest = df['high'].max()
 
-        if DEBUG:
-            logging.debug(f"[{symbol} | {interval}] Entry Condition Breakdown:")
-            logging.debug(f"→ Price <= BB Lower: {price <= bb_lower}")
-            logging.debug(f"→ RSI < 35: {rsi < 35}")
-            logging.debug(f"→ Stoch %K < 30: {stoch_k < 30}")
-            logging.debug(f"→ Stoch %D < 30: {stoch_d < 30}")
-            logging.debug(f"→ Trend (EMA200): {trend}")
-            logging.debug(f"→ Not Suppressed: {not suppressed}")
-            logging.debug(f"→ Volume Spike: {vol_spike}")
-            logging.debug(f"→ MACD Trending Up: {macd_trending_up}")
-            logging.debug(f"→ Close < BB Lower: {df.iloc[-1]['close'] < bb_lower}")
-            logging.debug(f"→ ATR Strong (Candle > ATR): {atr_strong}")
+        # --- Weighted Entry Scoring ---
+        entry_score = 0
+        weights = {
+            'price_below_bb': 15,
+            'rsi_oversold': 15,
+            'stoch_oversold': 10,
+            'trend_ema200': 15,
+            'not_suppressed': 10,
+            'volume_spike': 15,
+            'macd_trending': 10,
+            'close_below_bb': 5,
+            'atr_strong': 5
+        }
 
-        entry = (
-            price <= bb_lower and
-            rsi < 35 and
-            stoch_k < 30 and
-            stoch_d < 30 and
-            trend and
-            not suppressed and
-            vol_spike and
-            macd_trending_up and
-            df.iloc[-1]["close"] < bb_lower
-        )
+        if price <= bb_lower:
+            entry_score += weights['price_below_bb']
+        if rsi < 35:
+            entry_score += weights['rsi_oversold']
+        if stoch_k < 30 and stoch_d < 30:
+            entry_score += weights['stoch_oversold']
+        if trend:
+            entry_score += weights['trend_ema200']
+        if not suppressed:
+            entry_score += weights['not_suppressed']
+        if vol_spike:
+            entry_score += weights['volume_spike']
+        if macd_trending_up:
+            entry_score += weights['macd_trending']
+        if df.iloc[-1]["close"] < bb_lower:
+            entry_score += weights['close_below_bb']
+        if atr_strong:
+            entry_score += weights['atr_strong']
 
+        total_score = sum(weights.values())
+        entry_confidence = round((entry_score / total_score) * 100, 2)
+        entry = entry_confidence >= 70  # Threshold for entry alert
+
+        # --- TP Logic ---
         tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
 
-        if DEBUG:
-            logging.debug(f"[{symbol} | {interval}] TP Condition Breakdown:")
-            logging.debug(f"→ Price >= BB Upper: {price >= bb_upper}")
-            logging.debug(f"→ RSI > 70: {rsi > 70}")
-            logging.debug(f"→ Stoch %K > 80 and %D > 80: {stoch_k > 80 and stoch_d > 80}")
+        tp_confidence = 0
+        tp_confidence += 30 if price >= bb_upper else 0
+        tp_confidence += 25 if rsi > 70 else 0
+        tp_confidence += 20 if stoch_k > 80 and stoch_d > 80 else 0
+        tp_confidence += 15 if not suppressed else 0
+        tp_confidence += 10 if macd_trending_up else 0
+        tp_confidence = min(tp_confidence, 100)
 
+        if DEBUG:
+            logging.debug(f"[{symbol} | {interval}] Entry Confidence: {entry_confidence}%")
+            logging.debug(f"[{symbol} | {interval}] TP Confidence: {tp_confidence}%")
+
+        # Secondary confidence for display (unchanged)
         confidence = 0
         confidence += 20 if trend else 0
         confidence += 20 if vol_spike else 0
@@ -275,13 +283,16 @@ def analyze(symbol, interval, tsl_percent):
         confidence += 20 if divergence else 0
         confidence += 10 if macd_trending_up else 0
         confidence += 10 if atr_strong else 0
+        confidence = min(confidence, 100)
 
         return {
             'symbol': symbol,
             'interval': interval,
             'entry': entry,
             'tp': tp,
-            'confidence': min(confidence, 100),
+            'confidence': confidence,
+            'entry_confidence': entry_confidence,
+            'tp_confidence': tp_confidence,
             'rsi': round(rsi, 2),
             'stoch_k': round(stoch_k, 2),
             'stoch_d': round(stoch_d, 2),
