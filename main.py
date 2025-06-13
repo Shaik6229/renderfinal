@@ -7,13 +7,14 @@ import pandas as pd
 from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
-from ta.volatility import BollingerBands
+from ta.volatility import BollingerBands, AverageTrueRange
 from ta.trend import EMAIndicator
 
 # --- Toggle Debug Logging ---
 DEBUG = False  # Set to True for full debug logs
 log_level = logging.DEBUG if DEBUG else logging.INFO
-logging.basicConfig(level=log_level, format="%(asctime)s — %(levelname)s — %(message)s")
+logging.basicConfig(format=' %(levelname)s - %(message)s', level=log_level)
+
 
 # Flask app to keep alive
 app = Flask('')
@@ -53,12 +54,13 @@ highs_tracker = {}
 alert_tracker = {}
 
 def fetch_ohlcv(symbol, interval, limit=500):
-    url = f'https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}'
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
     try:
         data = requests.get(url).json()
         df = pd.DataFrame(data, columns=['open_time', 'open', 'high', 'low', 'close', 'volume',
                                          'close_time', 'quote_asset_volume', 'trades',
                                          'taker_buy_base', 'taker_buy_quote', 'ignore'])
+
         df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
         numeric_cols = ['open', 'high', 'low', 'close', 'volume']
         df[numeric_cols] = df[numeric_cols].astype(float)
@@ -72,6 +74,7 @@ def is_suppressed(df):
         return True
     try:
         bb = BollingerBands(df['close'])
+
         width = bb.bollinger_hband() - bb.bollinger_lband()
         avg_width = width.rolling(window=20).mean().iloc[-1]
         return avg_width < 0.01 * df['close'].iloc[-1]
@@ -95,6 +98,7 @@ def volume_spike(df, symbol):
     std_vol = vol.std()
     current_vol = df['volume'].iloc[-1]
     low_cap_symbols = ['CVCUSDT', 'CTSIUSDT', 'BANDUSDT', 'KAVAUSDT', 'FLUXUSDT', 'SFPUSDT', 'ILVUSDT', 'AGIXUSDT']
+
     multiplier = 1.2 if symbol in low_cap_symbols else 1.5
     return current_vol > mean_vol + multiplier * std_vol
 
@@ -102,11 +106,14 @@ def rsi_divergence(df):
     try:
         rsi_vals = RSIIndicator(df['close']).rsi().iloc[-15:]
         lows_price = df['low'].iloc[-15:]
+
         if len(rsi_vals) < 14 or len(lows_price) < 14:
             return False
+
         price_lows_idx = lows_price.nsmallest(2).index.tolist()
         if len(price_lows_idx) < 2:
             return False
+
         first, second = price_lows_idx[0], price_lows_idx[1]
         price_condition = lows_price.loc[first] > lows_price.loc[second]
         rsi_condition = rsi_vals.loc[first] < rsi_vals.loc[second]
@@ -118,6 +125,7 @@ def rsi_divergence(df):
 def categorize_by_mcap(symbol):
     blue_chip = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']
     mid_cap = ['AVAXUSDT', 'DOGEUSDT', 'ADAUSDT', 'MATICUSDT', 'DOTUSDT', 'LINKUSDT', 'LTCUSDT']
+
     if symbol in blue_chip:
         return "Blue Chip"
     elif symbol in mid_cap:
@@ -141,20 +149,21 @@ def interpret_confidence(conf):
 
 def entry_msg(data):
     category = categorize_by_mcap(data['symbol'])
+
     suggestion = interpret_confidence(data['confidence'])
-    return f"""
-🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}]
+
+    return f"""🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}] 
 *Confidence:* {suggestion}
 RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price at Lower BB ✅ | Volume Spike {'✅' if data['volume_spike'] else '❌'} | Trend: {'Bullish ✅' if data['trend'] else '❌'}
-Suppression: {'Yes ❌' if data['suppressed'] else 'No ✅'} | RSI Divergence: {'Yes ✅' if data['divergence'] else 'No ❌'}
+Price at Lower BB ✅ | Volume Spike {"✅" if data['volume_spike'] else "❌"} | Trend: {"Bullish ✅" if data['trend'] else "❌"}
+Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"} | RSI Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
 Initial SL: {data['initial_sl']} (ATR x {data['atr_multiplier']}) 
 TP Target: {data['bb_upper']} | Suggested TSL: {data['tsl_level']} (Trail {round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
-Price: {data['price']} | Time: {get_time()}
-"""
+Price: {data['price']} | Time: {get_time()}"""    
 
 def tp_msg(data):
     category = categorize_by_mcap(data['symbol'])
+
     confidence = 0
     confidence += 25 if data['rsi'] > 70 else 0
     confidence += 25 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
@@ -162,27 +171,29 @@ def tp_msg(data):
     confidence += 25 if not data['suppressed'] else 0
     confidence = min(confidence, 100)
     suggestion = interpret_confidence(confidence)
-    return f"""
-🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']}) [{category}]
+
+    return f"""🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']}) [{category}] 
 *Confidence:* {suggestion}
 Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price: {data['price']} | Time: {get_time()}
-"""
+Price: {data['price']} | Time: {get_time()}"""    
 
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'}
+    data = {
+        'chat_id': chat_id,
+        'text': message,
+        'parse_mode': 'Markdown'
+    }
     try:
         resp = requests.post(url, data=data)
-        if resp.status_code != 200:
-            logging.error(f"Telegram error {resp.status_code}: {resp.text}")
-        return resp.json()
+        if resp.status_code == 200:
+            return resp.json()
+        logging.error(f"Telegram error {resp.status_code}: {resp.text}")
     except Exception as e:
         logging.error(f"Telegram send error: {e}")
-        return None
 
 def alert_cooldown_passed(symbol, interval, kind, cooldown_minutes):
-    key = f"{symbol}_{interval}_{kind}"
+    key = f'{symbol}_{interval}_{kind}'
     now = datetime.utcnow()
     last = alert_tracker.get(key)
     if last is None or (now - last) > timedelta(minutes=cooldown_minutes):
@@ -201,6 +212,7 @@ def analyze(symbol, interval, tsl_percent):
         stoch_k = stoch.stoch().iloc[-1]
         stoch_d = stoch.stoch_signal().iloc[-1]
         bb = BollingerBands(df['close'])
+
         bb_lower = bb.bollinger_lband().iloc[-1]
         bb_upper = bb.bollinger_hband().iloc[-1]
         price = df['close'].iloc[-1]
@@ -208,7 +220,7 @@ def analyze(symbol, interval, tsl_percent):
         suppressed = is_suppressed(df)
         vol_spike = volume_spike(df, symbol)
         divergence = rsi_divergence(df)
-        
+
         # Dynamic ATR multiplier based on market cap
         category = categorize_by_mcap(symbol)
         if category == "Low Cap":
@@ -217,22 +229,22 @@ def analyze(symbol, interval, tsl_percent):
             atr_multiplier = 1.5
         else:
             atr_multiplier = 1.8
-        
+
         atr = AverageTrueRange(df['high'], df['low'], df['close'], window=14).average_true_range().iloc[-1]
         initial_sl = round(price - atr * atr_multiplier, 4)
-        
+
         entry = (price <= bb_lower) and (rsi < 35) and (stoch_k < 30 and stoch_d < 30) and trend and not suppressed and vol_spike
         tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
         highest = df['high'].max()
         tsl_level = highest * (1 - tsl_percent)
-        
+
         confidence = 0
         confidence += 20 if trend else 0
         confidence += 20 if vol_spike else 0
         confidence += 20 if not suppressed else 0
         confidence += 20 if divergence else 0
         confidence += 20 if entry else 0
-        
+
         return {
             'symbol': symbol,
             'interval': interval,
@@ -260,11 +272,13 @@ def analyze(symbol, interval, tsl_percent):
 
 async def scan_symbols():
     pairs = [
-        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "AVAXUSDT", "DOTUSDT", "MATICUSDT",
-        "NEARUSDT", "ATOMUSDT", "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT", "FILUSDT",
-        "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT", "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT",
-        "STXUSDT", "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "KAVAUSDT", "ENSUSDT", "FLUXUSDT",
-        "SFPUSDT", "ILVUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "IDUSDT", "TAOUSDT"
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
+        "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "ATOMUSDT",
+        "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT",
+        "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT", "FETUSDT",
+        "RNDRUSDT", "CVCUSDT", "CTSIUSDT", "BANDUSDT", "GRTUSDT",
+        "STXUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT",
+        "IDUSDT", "TAOUSDT"
     ]
     intervals = {"1h": 30, "1d": 360}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -294,7 +308,7 @@ from threading import Thread
 def start_bot():
     import nest_asyncio
     nest_asyncio.apply()
-    asyncio.run(main_loop())
+    asyncio.run(main_loop())    
 
 if __name__ == '__main__':
     Thread(target=run).start()
