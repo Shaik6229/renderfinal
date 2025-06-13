@@ -448,6 +448,109 @@ def analyze(symbol, interval, tsl_percent):
         if trend:
             entry_score += weights['trend_ema200']
         if not suppressed:
+def analyze(symbol, interval, tsl_percent):
+    df = fetch_ohlcv(symbol, interval)
+    if df.empty or len(df) < 100:
+        return None
+
+    try:
+        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+        stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
+        stoch_k = stoch.stoch().iloc[-1]
+        stoch_d = stoch.stoch_signal().iloc[-1]
+        bb = BollingerBands(df['close'])
+
+        bb_lower = bb.bollinger_lband().iloc[-1]
+        bb_upper = bb.bollinger_hband().iloc[-1]
+        price = df['close'].iloc[-1]
+        candlestick_body = abs(price - df.iloc[-1]["open"])
+
+        trend = check_trend(symbol, interval)
+        suppressed = is_suppressed(df)
+        vol_spike = volume_spike(df, symbol)
+        divergence = rsi_divergence(df)
+
+        macd_indicator = MACD(df['close'])
+        macd = macd_indicator.macd().iloc[-1]
+        macd_signal = macd_indicator.macd_signal().iloc[-1]
+        macd_trending_up = macd > macd_signal and macd > 0
+
+        atr = AverageTrueRange(df['high'], df['low'], df['close'], window=14).average_true_range().iloc[-1]
+        atr_strong = candlestick_body > atr
+
+        highest = df['high'].max()
+
+        # --- Weighted Entry Scoring ---
+        entry_score = 0
+        weights = {
+            'price_below_bb': 15,
+            'rsi_oversold': 15,
+            'stoch_oversold': 10,
+            'trend_ema200': 15,
+            'not_suppressed': 10,
+            'volume_spike': 15,
+            'macd_trending': 10,
+            'close_below_bb': 5,
+            'atr_strong': 5
+        }
+
+        if price <= bb_lower:
+            entry_score += weights['price_below_bb']
+def analyze(symbol, interval, tsl_percent):
+    df = fetch_ohlcv(symbol, interval)
+    if df.empty or len(df) < 100:
+        return None
+
+    try:
+        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+        stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
+        stoch_k = stoch.stoch().iloc[-1]
+        stoch_d = stoch.stoch_signal().iloc[-1]
+        bb = BollingerBands(df['close'])
+
+        bb_lower = bb.bollinger_lband().iloc[-1]
+        bb_upper = bb.bollinger_hband().iloc[-1]
+        price = df['close'].iloc[-1]
+        candlestick_body = abs(price - df.iloc[-1]["open"])
+
+        trend = check_trend(symbol, interval)
+        suppressed = is_suppressed(df)
+        vol_spike = volume_spike(df, symbol)
+        divergence = rsi_divergence(df)
+
+        macd_indicator = MACD(df['close'])
+        macd = macd_indicator.macd().iloc[-1]
+        macd_signal = macd_indicator.macd_signal().iloc[-1]
+        macd_trending_up = macd > macd_signal and macd > 0
+
+        atr = AverageTrueRange(df['high'], df['low'], df['close'], window=14).average_true_range().iloc[-1]
+        atr_strong = candlestick_body > atr
+
+        highest = df['high'].max()
+
+        # --- Weighted Entry Scoring ---
+        entry_score = 0
+        weights = {
+            'price_below_bb': 15,
+            'rsi_oversold': 15,
+            'stoch_oversold': 10,
+            'trend_ema200': 15,
+            'not_suppressed': 10,
+            'volume_spike': 15,
+            'macd_trending': 10,
+            'close_below_bb': 5,
+            'atr_strong': 5
+        }
+
+        if price <= bb_lower:
+            entry_score += weights['price_below_bb']
+        if rsi < 35:
+            entry_score += weights['rsi_oversold']
+        if stoch_k < 30 and stoch_d < 30:
+            entry_score += weights['stoch_oversold']
+        if trend:
+            entry_score += weights['trend_ema200']
+        if not suppressed:
             entry_score += weights['not_suppressed']
         if vol_spike:
             entry_score += weights['volume_spike']
@@ -460,7 +563,7 @@ def analyze(symbol, interval, tsl_percent):
 
         total_score = sum(weights.values())
         entry_confidence = round((entry_score / total_score) * 100, 2)
-        entry = entry_confidence >= 70
+        entry = entry_confidence >= 70  # Threshold for entry alert
 
         # --- TP Logic ---
         tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
@@ -477,7 +580,7 @@ def analyze(symbol, interval, tsl_percent):
             logging.debug(f"[{symbol} | {interval}] Entry Confidence: {entry_confidence}%")
             logging.debug(f"[{symbol} | {interval}] TP Confidence: {tp_confidence}%")
 
-        # Secondary confidence (for ranking only)
+        # Secondary confidence for display (unchanged)
         confidence = 0
         confidence += 20 if trend else 0
         confidence += 20 if vol_spike else 0
@@ -502,9 +605,9 @@ def analyze(symbol, interval, tsl_percent):
             'bb_upper': round(bb_upper, 4),
             'bb_lower': round(bb_lower, 4),
             'trend': trend,
-            'trend_15m': trend_15m,
-            'htf_1h': htf_1h,
-            'htf_1d': htf_1d,
+            'trend_15m': trend,  # fallback since HTF logic removed
+            'htf_1h': True,
+            'htf_1d': True,
             'suppressed': suppressed,
             'volume_spike': vol_spike,
             'divergence': divergence,
