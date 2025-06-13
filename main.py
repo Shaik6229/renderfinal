@@ -296,7 +296,7 @@ async def scan_symbols():
         "STXUSDT", "AGIXUSDT", "OCEANUSDT", "DYDXUSDT", "MKRUSDT",
         "IDUSDT", "TAOUSDT"
     ]
-    intervals = {"1h": 30, "1d": 360}
+    intervals = {"15": 10, "1h": 30, "1d": 360}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     for symbol in pairs:
