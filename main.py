@@ -102,22 +102,32 @@ def volume_spike(df, symbol):
     multiplier = 1.2 if symbol in low_cap_symbols else 1.5
     return current_vol > mean_vol + multiplier * std_vol
 
-def rsi_divergence(df):
+def rsi_divergence(df, lookback=20):
     try:
-        rsi_vals = RSIIndicator(df['close']).rsi().iloc[-15:]
-        lows_price = df['low'].iloc[-15:]
+        rsi = RSIIndicator(df['close']).rsi()
+        lows = df['low']
+        closes = df['close']
 
-        if len(rsi_vals) < 14 or len(lows_price) < 14:
+        if len(df) < lookback:
             return False
 
-        price_lows_idx = lows_price.nsmallest(2).index.tolist()
-        if len(price_lows_idx) < 2:
+        # Find recent swing lows in price and corresponding RSI
+        recent_lows = []
+        for i in range(1, lookback - 1):
+            if lows[i] < lows[i - 1] and lows[i] < lows[i + 1]:
+                recent_lows.append(i)
+
+        if len(recent_lows) < 2:
             return False
 
-        first, second = price_lows_idx[0], price_lows_idx[1]
-        price_condition = lows_price.loc[first] > lows_price.loc[second]
-        rsi_condition = rsi_vals.loc[first] < rsi_vals.loc[second]
-        return price_condition and rsi_condition
+        # Take the last two valid swing lows
+        idx1, idx2 = recent_lows[-2], recent_lows[-1]
+
+        price_divergence = lows.iloc[idx1] > lows.iloc[idx2]
+        rsi_divergence = rsi.iloc[idx1] < rsi.iloc[idx2]
+
+        return price_divergence and rsi_divergence
+
     except Exception as e:
         logging.error(f"Error detecting RSI divergence: {e}")
         return False
@@ -605,9 +615,9 @@ def analyze(symbol, interval, tsl_percent):
             'bb_upper': round(bb_upper, 4),
             'bb_lower': round(bb_lower, 4),
             'trend': trend,
-            'trend_15m': trend,  # fallback since HTF logic removed
-            'htf_1h': True,
-            'htf_1d': True,
+            'end_15m': trend_15m,
+            'htf_1h': htf_1h,
+            'htf_1d': htf_1d,
             'suppressed': suppressed,
             'volume_spike': vol_spike,
             'divergence': divergence,
