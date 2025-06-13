@@ -148,7 +148,7 @@ def entry_msg(data):
 RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Price at Lower BB ✅ | Volume Spike {'✅' if data['volume_spike'] else '❌'} | Trend: {'Bullish ✅' if data['trend'] else '❌'}
 Suppression: {'Yes ❌' if data['suppressed'] else 'No ✅'} | RSI Divergence: {'Yes ✅' if data['divergence'] else 'No ❌'}
-Initial SL: {data['initial_sl']}
+Initial SL: {data['initial_sl']} (ATR x {data['atr_multiplier']}) 
 TP Target: {data['bb_upper']} | Suggested TSL: {data['tsl_level']} (Trail {round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
 Price: {data['price']} | Time: {get_time()}
 """
