@@ -8,7 +8,7 @@ from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands, AverageTrueRange
-from ta.trend import EMAIndicator
+from ta.trend import EMAIndicator, ADXIndicator
 
 # --- Toggle Debug Logging ---
 DEBUG = False  # Set to True for full debug logs
