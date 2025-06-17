@@ -216,8 +216,8 @@ def analyze(symbol, interval, tsl_percent):
         divergence = rsi_divergence(df)
         rsi = RSIIndicator(close=df['close']).rsi().iloc[-1]
         stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
-        stoch_k = stoch.stochastic_k().iloc[-1]
-        stoch_d = stoch.stochastic_d().iloc[-1]
+        stoch_k = stoch.k().iloc[-1]
+        stoch_d = stoch.d().iloc[-1]
         bb = BollingerBands(close=df['close'], window=20, window_dev=2)
         bb_upper = bb.bollinger_hband().iloc[-1]
         bb_lower = bb.bollinger_lband().iloc[-1]
@@ -319,6 +319,7 @@ def analyze(symbol, interval, tsl_percent):
             "higher_tf_conf": 0,
             "note": f"Exception: {e}"
         }
+
 
 
 
