@@ -208,18 +208,23 @@ def analyze(symbol, interval, tsl_percent):
 
         # Compute indicators
         trend = check_trend(symbol, interval)
-        vol_spike = volume_spike(df, symbol)
-        suppressed = is_suppressed(df)
-        divergence = rsi_divergence(df)
-        rsi = RSIIndicator(close=df['close']).rsi().iloc[-1]
-        stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
-        stoch_k = stoch.stochastic().iloc[-1]
-        stoch_d = stoch.signal().iloc[-1]
-        price = df['close'].iloc[-1]
-        bb = BollingerBands(close=df['close'], window=20, window_dev=2)
-        bb_upper = bb.bollinger_hband().iloc[-1]
-        bb_lower = bb.bollinger_lband().iloc[-1]
-        initial_sl = price * (1 - 0.05)
+vol_spike = volume_spike(df, symbol)
+suppressed = is_suppressed(df)
+divergence = rsi_divergence(df)
+rsi = RSIIndicator(close=df['close']).rsi().iloc[-1]
+stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
+stoch_k = stoch.stochastic_k().iloc[-1]
+stoch_d = stoch.stochastic_d().iloc[-1]
+bb = BollingerBands(close=df['close'], window=20, window_dev=2)
+bb_upper = bb.bollinger_hband().iloc[-1]
+bb_lower = bb.bollinger_lband().iloc[-1]
+
+# Define price first
+price = df['close'].iloc[-1]
+
+# Then compute initial_sl
+initial_sl = price * (1 - 0.05)
+
 
         # MACD Indicator
         macd = MACDIndicator(close=df['close'], window_slow=26, window_fast=12, window_signal=9)
