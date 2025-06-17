@@ -8,7 +8,7 @@ from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
-from ta.trend import EMAIndicator, MACDIndicator
+from ta.trend import EMAIndicator, MACD
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s — %(message)s")
