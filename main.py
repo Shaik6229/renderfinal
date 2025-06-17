@@ -8,7 +8,8 @@ from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
-from ta.trend import EMAIndicator
+from ta.trend import EMAIndicator, MACDIndicator
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s — %(message)s")
@@ -199,15 +200,33 @@ def analyze(symbol, interval, tsl_percent):
         vol_spike = volume_spike(df, symbol)
         suppressed = is_suppressed(df)
         divergence = rsi_divergence(df)
-        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+        rsi = RSIIndicator(close=df['close']).rsi().iloc[-1]
         stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
         stoch_k = stoch.stochastic().iloc[-1]
         stoch_d = stoch.signal().iloc[-1]
         price = df['close'].iloc[-1]
-        bb = BollingerBands(df['close'], window=20, window_dev=2)
+        bb = BollingerBands(close=df['close'], window=20, window_dev=2)
         bb_upper = bb.bollinger_hband().iloc[-1]
         bb_lower = bb.bollinger_lband().iloc[-1]
-        initial_sl = price * (1 - 0.05)  # example 5% drop
+        initial_sl = price * (1 - 0.05)
+
+        # MACD Indicator
+        macd = MACDIndicator(close=df['close'], window_slow=26, window_fast=12, window_signal=9)
+        macd_line = macd.macd().iloc[-1]
+        signal_line = macd.signal().iloc[-1]
+        prev_macd = macd.macd().iloc[-2]
+        prev_signal = macd.signal().iloc[-2]
+        macd_cross_up = macd_line > signal_line and prev_macd <= prev_signal
+
+        # Higher timeframe confirmation (1D)
+        df_1d = fetch_ohlcv(symbol, "1d")
+        higher_tf_conf = 0
+        if df_1d is not None and len(df_1d) > 100:
+            macd_1d = MACDIndicator(close=df_1d['close'], window_slow=26, window_fast=12, window_signal=9)
+            macd_line_1d = macd_1d.macd().iloc[-1]
+            signal_line_1d = macd_1d.signal().iloc[-1]
+            if macd_line_1d > signal_line_1d:
+                higher_tf_conf += 20
 
         # Define entry first
         entry = price < bb_lower
@@ -223,8 +242,15 @@ def analyze(symbol, interval, tsl_percent):
             entry_confidence += 20
         if entry:
             entry_confidence += 20
+        if macd_cross_up:
+            entry_confidence += 20
+        if higher_tf_conf == 20:
+            entry_confidence += 20
+
         entry_confidence = min(entry_confidence, 100)
 
+        if entry_confidence < 60:
+            entry = False  # Suppress weak entry signals
 
         # Take-profit confidence
         tp_confidence = 0
@@ -239,31 +265,23 @@ def analyze(symbol, interval, tsl_percent):
 
         tp_confidence = min(tp_confidence, 100)
 
+        if tp_confidence < 60:
+            tp = False  # Suppress weak take-profit signals
 
         return {
-            'symbol': symbol,
-            'interval': interval,
-            'entry': entry,
-            'entry_confidence': entry_confidence,
-            'rsi': rsi,
-            'stoch_k': stoch_k,
-            'stoch_d': stoch_d,
-            'volume_spike': vol_spike,
-            'suppressed': suppressed,
-            'divergence': divergence,
-            'trend': trend,
-            'price': price,
-            'initial_sl': initial_sl,
-            'bb_upper': bb_upper,
-            'bb_lower': bb_lower,
-            'tsl_level': tsl_percent,
-            'tp_confidence': tp_confidence,
-            'tp': price >= bb_upper
+            "entry": entry,
+            "entry_confidence": entry_confidence,
+            "take_profit_confidence": tp_confidence,
+            "entry_price": price,
+            "initial_stoploss": initial_sl,
+            "macd_cross_up": macd_cross_up,
+            "higher_tf_conf": higher_tf_conf
         }
 
     except Exception as e:
-        logging.error(f"Error analyzing {symbol} {interval}: {e}")
+        logging.error(f"Error analyzing {symbol}: {e}")
         return None
+
 
 
 
