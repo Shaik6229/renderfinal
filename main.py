@@ -207,48 +207,57 @@ def analyze(symbol, interval, tsl_percent):
             }
 
         # Perform Indicator Calculations
-        trend = check_trend(symbol, interval)
-        vol_spike = volume_spike(df, symbol)
+        trend      = check_trend(symbol, interval)
+        vol_spike  = volume_spike(df, symbol)
         suppressed = is_suppressed(df)
         divergence = rsi_divergence(df)
-        rsi = RSIIndicator(close=df['close'], window=14).rsi().iloc[-1]
+        rsi        = RSIIndicator(close=df['close'], window=14).rsi().iloc[-1]
 
-        # Stochastic 1
-        stoch_1 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
-        stoch_k1 = stoch_1.stochastic_k().iloc[-1]
-        stoch_d1 = stoch_1.stochastic_d().iloc[-1]
+        # ——— FOUR STOCH ASTS ———
+        windows       = STOCH_CONFIG[interval]   # ["1h"] or ["1d"]
+        stoch_results = []
 
-        # Stochastic 2
-        stoch_2 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=21)
-        stoch_k2 = stoch_2.stochastic_k().iloc[-1]
-        stoch_d2 = stoch_2.stochastic_d().iloc[-1]
+        for w in windows:
+            st = StochasticOscillator(
+                high=df['high'], low=df['low'], close=df['close'],
+                window=w, smooth_window=3
+            )
+            k = st.stoch().iloc[-1]         # %K
+            d = st.stoch_signal().iloc[-1]  # %D
+            stoch_results.append((k, d))
 
-        # Stochastic 3
-        stoch_3 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=40)
-        stoch_k3 = stoch_3.stochastic_k().iloc[-1]
-        stoch_d3 = stoch_3.stochastic_d().iloc[-1]
+        # unpack
+        (stoch_k1, stoch_d1), \
+        (stoch_k2, stoch_d2), \
+        (stoch_k3, stoch_d3), \
+        (stoch_k4, stoch_d4) = stoch_results
 
-        # Stochastic 4
-        stoch_4 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=60)
-        stoch_k4 = stoch_4.stochastic_k().iloc[-1]
-        stoch_d4 = stoch_4.stochastic_d().iloc[-1]
+        # per‐Stoch "oversold confidence"
+        stoch_conf1 = stoch_confidence(stoch_k1)
+        stoch_conf2 = stoch_confidence(stoch_k2)
+        stoch_conf3 = stoch_confidence(stoch_k3)
+        stoch_conf4 = stoch_confidence(stoch_k4)
+
+        # ——— CONSOLIDATED STOCH CONFIDENCE ———
+        # Simple average of the four (you can swap in weights if you like)
+        stoch_overall = int(
+            (stoch_conf1 + stoch_conf2 + stoch_conf3 + stoch_conf4) / 4
+        )
 
         # Bollinger Bands
-        bb = BollingerBands(close=df['close'], window=20, window_dev=2)
-        bb_upper = bb.bollinger_hband().iloc[-1]
-        bb_lower = bb.bollinger_lband().iloc[-1]
+        bb         = BollingerBands(close=df['close'], window=20, window_dev=2)
+        bb_upper   = bb.bollinger_hband().iloc[-1]
+        bb_lower   = bb.bollinger_lband().iloc[-1]
 
-        # Define price first
-        price = df['close'].iloc[-1]
-
-        # Then compute initial_sl
+        # Price and stop
+        price      = df['close'].iloc[-1]
         initial_sl = price * (1 - 0.05)
 
         # MACD Indicator
-        macd = MACD(close=df['close'], window_slow=26, window_fast=12, window_signal=9)
-        macd_line = macd.macd().iloc[-1]
+        macd        = MACD(close=df['close'], window_slow=26, window_fast=12, window_signal=9)
+        macd_line   = macd.macd().iloc[-1]
         signal_line = macd.signal().iloc[-1]
-        prev_macd = macd.macd().iloc[-2]
+        prev_macd   = macd.macd().iloc[-2]
         prev_signal = macd.signal().iloc[-2]
         macd_cross_up = macd_line > signal_line and prev_macd <= prev_signal
 
@@ -256,16 +265,15 @@ def analyze(symbol, interval, tsl_percent):
         higher_tf_conf = 0
         df_1d = fetch_ohlcv(symbol, "1d")
         if df_1d is not None and len(df_1d) > 100:
-            macd_1d = MACD(close=df_1d['close'], window_slow=26, window_fast=12, window_signal=9)
-            macd_line_1d = macd_1d.macd().iloc[-1]
+            macd_1d        = MACD(close=df_1d['close'], window_slow=26, window_fast=12, window_signal=9)
+            macd_line_1d   = macd_1d.macd().iloc[-1]
             signal_line_1d = macd_1d.signal().iloc[-1]
             if macd_line_1d > signal_line_1d:
                 higher_tf_conf = 10
 
-        # Define entry condition
+        # Entry logic
         entry = price < bb_lower
 
-        # Normalized entry confidence weights
         weights = {
             "trend": 15,
             "vol_spike": 10,
@@ -277,46 +285,32 @@ def analyze(symbol, interval, tsl_percent):
         }
 
         entry_confidence = 0
-        if trend:
-            entry_confidence += weights["trend"]
-        if vol_spike:
-            entry_confidence += weights["vol_spike"]
-        if not suppressed:
-            entry_confidence += weights["not_suppressed"]
-        if divergence:
-            entry_confidence += weights["divergence"]
-        if entry:
-            entry_confidence += weights["price_below_bb_lower"]
-        if macd_cross_up:
-            entry_confidence += weights["macd_cross_up"]
-        if higher_tf_conf == 10:
-            entry_confidence += weights["higher_tf_conf"]
+        if trend:      entry_confidence += weights["trend"]
+        if vol_spike:  entry_confidence += weights["vol_spike"]
+        if not suppressed: entry_confidence += weights["not_suppressed"]
+        if divergence: entry_confidence += weights["divergence"]
+        if entry:      entry_confidence += weights["price_below_bb_lower"]
+        if macd_cross_up:    entry_confidence += weights["macd_cross_up"]
+        if higher_tf_conf:   entry_confidence += weights["higher_tf_conf"]
 
         entry_confidence = min(entry_confidence, 100)
-
         if entry_confidence < 50:
             entry = False
 
-        # Take-profit confidence weights
+        # Take‐profit logic
         tp_confidence = 0
-        if rsi > 70:
-            tp_confidence += 25
-        if stoch_k1 > 80 and stoch_d1 > 80:
-            tp_confidence += 10
-        if stoch_k2 > 80 and stoch_d2 > 80:
-            tp_confidence += 10
-        if stoch_k3 > 80 and stoch_d3 > 80:
-            tp_confidence += 10
-        if stoch_k4 > 80 and stoch_d4 > 80:
-            tp_confidence += 10
-        if price >= bb_upper:
-            tp_confidence += 25
-        if not suppressed:
-            tp_confidence += 25
+        if rsi > 70:                   tp_confidence += 25
+        if stoch_k1 > 80 and stoch_d1 > 80: tp_confidence += 10
+        if stoch_k2 > 80 and stoch_d2 > 80: tp_confidence += 10
+        if stoch_k3 > 80 and stoch_d3 > 80: tp_confidence += 10
+        if stoch_k4 > 80 and stoch_d4 > 80: tp_confidence += 10
+        if price >= bb_upper:          tp_confidence += 25
+        if not suppressed:             tp_confidence += 25
 
         tp_confidence = min(tp_confidence, 100)
         tp = tp_confidence >= 50
 
+        # Return everything (including new stoch_conf1…4)
         return {
             "entry": entry,
             "entry_confidence": entry_confidence,
@@ -328,12 +322,17 @@ def analyze(symbol, interval, tsl_percent):
             "higher_tf_conf": higher_tf_conf,
             "stochastic_k1": stoch_k1,
             "stochastic_d1": stoch_d1,
+            "stoch_conf1": stoch_conf1,
             "stochastic_k2": stoch_k2,
             "stochastic_d2": stoch_d2,
+            "stoch_conf2": stoch_conf2,
             "stochastic_k3": stoch_k3,
             "stochastic_d3": stoch_d3,
+            "stoch_conf3": stoch_conf3,
             "stochastic_k4": stoch_k4,
-            "stochastic_d4": stoch_d4
+            "stochastic_d4": stoch_d4,
+            "stoch_conf4": stoch_conf4,
+            "stoch_overall": stoch_overall,
         }
 
     except Exception as e:
@@ -349,6 +348,7 @@ def analyze(symbol, interval, tsl_percent):
             "higher_tf_conf": 0,
             "note": f"Exception: {e}"
         }
+
 
 async def scan_symbols():
     pairs = [
