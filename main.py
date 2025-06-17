@@ -244,12 +244,12 @@ def analyze(symbol, interval, tsl_percent):
         # Normalized entry confidence weights summing to 100
         weights = {
             "trend": 15,
-            "vol_spike": 15,
-            "not_suppressed": 15,
-            "divergence": 15,
-            "price_below_bb_lower": 15,
-            "macd_cross_up": 15,
-            "higher_tf_conf": 10,
+            "vol_spike": 10,
+            "not_suppressed": 10,
+            "divergence": 10,
+            "price_below_bb_lower": 10,
+            "macd_cross_up": 25,
+            "higher_tf_conf": 20,
         }
 
         entry_confidence = 0
