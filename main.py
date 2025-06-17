@@ -329,5 +329,8 @@ def start_bot():
     asyncio.run(main_loop())
 
 if __name__ == '__main__':
+    # Run the Flask app in a separate thread
     Thread(target=run).start()
+    # Run your bot’s main loop in another thread
     Thread(target=start_bot).start()
+
