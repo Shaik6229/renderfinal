@@ -343,7 +343,7 @@ async def scan_symbols():
                 if data['entry'] and alert_cooldown_passed(symbol, interval, 'entry', cooldown):
                     msg = entry_msg(data)
                     await send_telegram_message(bot_token, chat_id, msg)
-                elif data['tp'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
+                elif data['take_profit'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
                     msg = tp_msg(data)
                     await send_telegram_message(bot_token, chat_id, msg)
             except Exception as e:
