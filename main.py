@@ -155,23 +155,6 @@ Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
 Initial SL: {data['initial_sl']} | Take-profit: {data['bb_upper']} | TSL: {data['tsl_level']} 
 Current price: {data['price']} | Time: {get_time()}"""
 
-
-def entry_msg(data):
-    category = categorize_by_mcap(data['symbol'])
-
-    suggestion = interpret_confidence(data['entry_confidence'])
-
-    return f"""🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}] 
-*Entry confidence:* {suggestion}
-RSI: {data['rsi']} | Stochastic %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Volume Spike: {"✅" if data['volume_spike'] else "❌"}
-Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"}
-Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
-Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
-Initial SL: {data['initial_sl']} | Take-profit: {data['bb_upper']} | TSL: {data['tsl_level']} 
-Current price: {data['price']} | Time: {get_time()}"""
-
-
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'}
@@ -194,46 +177,81 @@ def alert_cooldown_passed(symbol, interval, kind, cooldown_minutes):
     return False
 
 def analyze(symbol, interval, tsl_percent):
-    entry_confidence = 0
-if trend:
-    entry_confidence += 20
-if vol_spike:
-    entry_confidence += 20
-if not suppressed:
-    entry_confidence += 20
-if divergence:
-    entry_confidence += 20
-if entry:
-    entry_confidence += 20
-entry_confidence = min(entry_confidence, 100)
+    try:
+        df = fetch_ohlcv(symbol, interval)
+        if df.empty or len(df) < 100:
+            return None
+
+        # compute indicators first
+        trend = check_trend(symbol, interval)
+        vol_spike = volume_spike(df, symbol)
+        suppressed = is_suppressed(df)
+        divergence = rsi_divergence(df)
+        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+        stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
+        stoch_k = stoch.stochastic().iloc[-1]
+        stoch_d = stoch.signal().iloc[-1]
+        price = df['close'].iloc[-1]
+        bb = BollingerBands(df['close'], window=20, window_dev=2)
+        bb_upper = bb.bollinger_hband().iloc[-1]
+        bb_lower = bb.bollinger_lband().iloc[-1]
+        initial_sl = price * (1 - 0.05)  # example 5% drop
+
+        # entry condition
+        entry = price < bb_lower
+
+        entry_confidence = 0
+        if trend:
+            entry_confidence += 20
+        if vol_spike:
+            entry_confidence += 20
+        if not suppressed:
+            entry_confidence += 20
+        if divergence:
+            entry_confidence += 20
+        if entry:
+            entry_confidence += 20
+        entry_confidence = min(entry_confidence, 100)
 
 
-# Take-profit confidence (separate)
-tp_confidence = 0
-if rsi > 70:
-    tp_confidence += 25
-if stoch_k > 80 and stoch_d > 80:
-    tp_confidence += 25
-if price >= bb_upper:
-    tp_confidence += 25
-if not suppressed:
-    tp_confidence += 25
-tp_confidence = min(tp_confidence, 100)
+        # Take-profit confidence (separate)
+        tp_confidence = 0
+        if rsi > 70:
+            tp_confidence += 25
+        if stoch_k > 80 and stoch_d > 80:
+            tp_confidence += 25
+        if price >= bb_upper:
+            tp_confidence += 25
+        if not suppressed:
+            tp_confidence += 25
+        tp_confidence = min(tp_confidence, 100)
 
 
-       return {
-    'symbol': symbol,
-    'interval': interval,
-    'entry': entry,
-    'tp': tp,
-    'entry_confidence': entry_confidence,
-    'tp_confidence': tp_confidence,
-    # … rest
-}
+        return {
+            'symbol': symbol,
+            'interval': interval,
+            'entry': entry,
+            'entry_confidence': entry_confidence,
+            'rsi': rsi,
+            'stoch_k': stoch_k,
+            'stoch_d': stoch_d,
+            'volume_spike': vol_spike,
+            'suppressed': suppressed,
+            'divergence': divergence,
+            'trend': trend,
+            'price': price,
+            'initial_sl': initial_sl,
+            'bb_upper': bb_upper,
+            'bb_lower': bb_lower,
+            'tsl_level': tsl_percent,
+            'tp_confidence': tp_confidence,
+            'tp': price >= bb_upper
+        }
 
     except Exception as e:
         logging.error(f"Error analyzing {symbol} {interval}: {e}")
         return None
+
 
 async def scan_symbols():
     
