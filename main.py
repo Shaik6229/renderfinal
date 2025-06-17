@@ -292,4 +292,4 @@ for w in windows:
     except Exception as e:
         logging.error(f"Error Stochastic for {symbol} {interval} window {w}: {e}")
         continue
-"
+
