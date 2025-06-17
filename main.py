@@ -314,40 +314,41 @@ def analyze(symbol, interval, tsl_percent):
             "note": f"Exception: {e}"
         }
 
-            
-
-
-
-
 async def scan_symbols():
-    
     pairs = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
-    "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "ATOMUSDT",
-    "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT",
-    "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT",
-    "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT", "STXUSDT",
-    "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "KAVAUSDT",
-    "ENSUSDT", "FLUXUSDT", "SFPUSDT", "ILVUSDT", "AGIXUSDT",
-    "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "IDUSDT", "TAOUSDT"
-]
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
+        "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "ATOMUSDT",
+        "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT",
+        "FILUSDT", "APTUSDT", "OPUSDT", "ARBUSDT", "INJUSDT",
+        "FETUSDT", "RNDRUSDT", "ARUSDT", "GRTUSDT", "STXUSDT",
+        "CVCUSDT", "CTSIUSDT", "BANDUSDT", "CFXUSDT", "KAVAUSDT",
+        "ENSUSDT", "FLUXUSDT", "SFPUSDT", "ILVUSDT", "AGIXUSDT",
+        "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "IDUSDT", "TAOUSDT"
+    ]
     intervals = {"1h": 30, "1d": 360}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
     for symbol in pairs:
         for interval, cooldown in intervals.items():
             try:
                 data = analyze(symbol, interval, 0.25 if interval == "1h" else 0.35)
                 if not data:
                     continue
+
                 if data['entry'] and alert_cooldown_passed(symbol, interval, 'entry', cooldown):
                     msg = entry_msg(data)
                     await send_telegram_message(bot_token, chat_id, msg)
-                elif data['take_profit'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
+                elif (data['take_profit'] 
+                      and data.get('take_profit_confidence', 0) > 75 
+                      and alert_cooldown_passed(symbol, interval, 'tp', cooldown)):
                     msg = tp_msg(data)
                     await send_telegram_message(bot_token, chat_id, msg)
+
             except Exception as e:
                 logging.error(f"Scan error for {symbol} {interval}: {e}")
+
+
 
 async def main_loop():
     while True:
