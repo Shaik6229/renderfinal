@@ -193,9 +193,20 @@ def analyze(symbol, interval, tsl_percent):
     try:
         df = fetch_ohlcv(symbol, interval)
         if df.empty or len(df) < 100:
-            return None
+            logging.warning(f"{symbol} {interval}: insufficient data")
+            return {
+                "entry": False,
+                "entry_confidence": 0,
+                "take_profit_confidence": 0,
+                "take_profit": False,
+                "entry_price": None,
+                "initial_stoploss": None,
+                "macd_cross_up": False,
+                "higher_tf_conf": 0,
+                "note": "Insufficient data"
+            }
 
-        # compute indicators first
+        # Compute indicators
         trend = check_trend(symbol, interval)
         vol_spike = volume_spike(df, symbol)
         suppressed = is_suppressed(df)
@@ -226,33 +237,44 @@ def analyze(symbol, interval, tsl_percent):
             macd_line_1d = macd_1d.macd().iloc[-1]
             signal_line_1d = macd_1d.signal().iloc[-1]
             if macd_line_1d > signal_line_1d:
-                higher_tf_conf += 20
+                higher_tf_conf = 10
 
-        # Define entry first
+        # Define entry condition
         entry = price < bb_lower
+
+        # Normalized entry confidence weights summing to 100
+        weights = {
+            "trend": 15,
+            "vol_spike": 15,
+            "not_suppressed": 15,
+            "divergence": 15,
+            "price_below_bb_lower": 15,
+            "macd_cross_up": 15,
+            "higher_tf_conf": 10,
+        }
 
         entry_confidence = 0
         if trend:
-            entry_confidence += 20
+            entry_confidence += weights["trend"]
         if vol_spike:
-            entry_confidence += 20
+            entry_confidence += weights["vol_spike"]
         if not suppressed:
-            entry_confidence += 20
+            entry_confidence += weights["not_suppressed"]
         if divergence:
-            entry_confidence += 20
+            entry_confidence += weights["divergence"]
         if entry:
-            entry_confidence += 20
+            entry_confidence += weights["price_below_bb_lower"]
         if macd_cross_up:
-            entry_confidence += 20
-        if higher_tf_conf == 20:
-            entry_confidence += 20
+            entry_confidence += weights["macd_cross_up"]
+        if higher_tf_conf == 10:
+            entry_confidence += weights["higher_tf_conf"]
 
         entry_confidence = min(entry_confidence, 100)
 
-        if entry_confidence < 60:
+        if entry_confidence < 50:  # Changed threshold here
             entry = False  # Suppress weak entry signals
 
-        # Take-profit confidence
+        # Take-profit confidence weights sum to 100
         tp_confidence = 0
         if rsi > 70:
             tp_confidence += 25
@@ -265,13 +287,13 @@ def analyze(symbol, interval, tsl_percent):
 
         tp_confidence = min(tp_confidence, 100)
 
-        if tp_confidence < 60:
-            tp = False  # Suppress weak take-profit signals
+        tp = tp_confidence >= 50  # Changed threshold here
 
         return {
             "entry": entry,
             "entry_confidence": entry_confidence,
             "take_profit_confidence": tp_confidence,
+            "take_profit": tp,
             "entry_price": price,
             "initial_stoploss": initial_sl,
             "macd_cross_up": macd_cross_up,
@@ -280,7 +302,19 @@ def analyze(symbol, interval, tsl_percent):
 
     except Exception as e:
         logging.error(f"Error analyzing {symbol}: {e}")
-        return None
+        return {
+            "entry": False,
+            "entry_confidence": 0,
+            "take_profit_confidence": 0,
+            "take_profit": False,
+            "entry_price": None,
+            "initial_stoploss": None,
+            "macd_cross_up": False,
+            "higher_tf_conf": 0,
+            "note": f"Exception: {e}"
+        }
+
+            
 
 
 
