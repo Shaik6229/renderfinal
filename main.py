@@ -143,10 +143,10 @@ def interpret_confidence(conf):
 def entry_msg(data):
     category = categorize_by_mcap(data['symbol'])
 
-    suggestion = interpret_confidence(data['confidence'])
+    suggestion = interpret_confidence(data['entry_confidence'])
 
     return f"""🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}] 
-*Confidence:* {suggestion}
+*Entry confidence:* {suggestion}
 RSI: {data['rsi']} | Stochastic %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Volume Spike: {"✅" if data['volume_spike'] else "❌"}
 Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"}
@@ -155,21 +155,22 @@ Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
 Initial SL: {data['initial_sl']} | Take-profit: {data['bb_upper']} | TSL: {data['tsl_level']} 
 Current price: {data['price']} | Time: {get_time()}"""
 
-def tp_msg(data):
+
+def entry_msg(data):
     category = categorize_by_mcap(data['symbol'])
-    confidence = 0
-    confidence += 25 if data['rsi'] > 70 else 0
-    confidence += 25 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
-    confidence += 25 if data['price'] >= data['bb_upper'] else 0
-    confidence += 25 if not data['suppressed'] else 0
-    confidence = min(confidence, 100)
-    suggestion = interpret_confidence(confidence)
-    return f"""
-🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']}) [{category}]
-*Confidence:* {suggestion}
-Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price: {data['price']} | Time: {get_time()}
-"""
+
+    suggestion = interpret_confidence(data['entry_confidence'])
+
+    return f"""🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}] 
+*Entry confidence:* {suggestion}
+RSI: {data['rsi']} | Stochastic %K: {data['stoch_k']} / %D: {data['stoch_d']}
+Volume Spike: {"✅" if data['volume_spike'] else "❌"}
+Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"}
+Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
+Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
+Initial SL: {data['initial_sl']} | Take-profit: {data['bb_upper']} | TSL: {data['tsl_level']} 
+Current price: {data['price']} | Time: {get_time()}"""
+
 
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -193,62 +194,43 @@ def alert_cooldown_passed(symbol, interval, kind, cooldown_minutes):
     return False
 
 def analyze(symbol, interval, tsl_percent):
-    df = fetch_ohlcv(symbol, interval)
-    if df.empty or len(df) < 100:
-        return None
-
-    try:
-        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
-        stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
-        stoch_k = stoch.stoch().iloc[-1]
-        stoch_d = stoch.stoch_signal().iloc[-1]
-        bb = BollingerBands(df['close'])
-        bb_lower = bb.bollinger_lband().iloc[-1]
-        bb_upper = bb.bollinger_hband().iloc[-1]
-        price = df['close'].iloc[-1]
-        trend = check_trend(symbol, interval)
-        suppressed = is_suppressed(df)
-        vol_spike = volume_spike(df, symbol)
-        divergence = rsi_divergence(df)
-        entry = (price <= bb_lower) and (rsi < 35) and (stoch_k < 30 and stoch_d < 30) and trend and not suppressed and vol_spike
-        tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
-        highest = df['high'].max()
-        tsl_level = highest * (1 - tsl_percent)
-        initial_sl = df['low'].iloc[-5:].min()
-        confidence = 0
+    entry_confidence = 0
 if trend:
-    confidence += 20
+    entry_confidence += 20
 if vol_spike:
-    confidence += 20
+    entry_confidence += 20
 if not suppressed:
-    confidence += 20
+    entry_confidence += 20
 if divergence:
-    confidence += 20
+    entry_confidence += 20
 if entry:
-    confidence += 20
+    entry_confidence += 20
+entry_confidence = min(entry_confidence, 100)
 
-# Now confidence is a score from 0-100
 
-        return {
-            'symbol': symbol,
-            'interval': interval,
-            'entry': entry,
-            'tp': tp,
-            'confidence': confidence,
-            'rsi': round(rsi, 2),
-            'stoch_k': round(stoch_k, 2),
-            'stoch_d': round(stoch_d, 2),
-            'price': round(price, 4),
-            'bb_upper': round(bb_upper, 4),
-            'bb_lower': round(bb_lower, 4),
-            'trend': trend,
-            'suppressed': suppressed,
-            'volume_spike': vol_spike,
-            'divergence': divergence,
-            'initial_sl': round(initial_sl, 4),
-            'highest': round(highest, 4),
-            'tsl_level': round(tsl_level, 4),
-        }
+# Take-profit confidence (separate)
+tp_confidence = 0
+if rsi > 70:
+    tp_confidence += 25
+if stoch_k > 80 and stoch_d > 80:
+    tp_confidence += 25
+if price >= bb_upper:
+    tp_confidence += 25
+if not suppressed:
+    tp_confidence += 25
+tp_confidence = min(tp_confidence, 100)
+
+
+       return {
+    'symbol': symbol,
+    'interval': interval,
+    'entry': entry,
+    'tp': tp,
+    'entry_confidence': entry_confidence,
+    'tp_confidence': tp_confidence,
+    # … rest
+}
+
     except Exception as e:
         logging.error(f"Error analyzing {symbol} {interval}: {e}")
         return None
