@@ -6,6 +6,8 @@ import requests
 import pandas as pd
 from flask import Flask, request
 import asyncio
+import nest_asyncio
+from threading import Thread
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
 from ta.trend import EMAIndicator, MACD
@@ -14,7 +16,8 @@ from ta.trend import EMAIndicator, MACD
 logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s — %(message)s")
 
 # Flask app to keep alive
-app = Flask('')
+app = Flask(__name__)
+
 
 @app.route('/')
 def home():
@@ -234,8 +237,8 @@ def analyze(symbol, interval, tsl_percent):
         macd_cross_up = macd_line > signal_line and prev_macd <= prev_signal
 
         # Higher timeframe confirmation (1D)
-        df_1d = fetch_ohlcv(symbol, "1d")
         higher_tf_conf = 0
+        df_1d = fetch_ohlcv(symbol, "1d")
         if df_1d is not None and len(df_1d) > 100:
             macd_1d = MACDIndicator(close=df_1d['close'], window_slow=26, window_fast=12, window_signal=9)
             macd_line_1d = macd_1d.macd().iloc[-1]
@@ -316,6 +319,7 @@ def analyze(symbol, interval, tsl_percent):
             "higher_tf_conf": 0,
             "note": f"Exception: {e}"
         }
+
 
 
 async def scan_symbols():
