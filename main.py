@@ -163,8 +163,9 @@ Volume Spike: {"✅" if data['volume_spike'] else "❌"}
 Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"}
 Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
 Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
-Take-profit at: {data['bb_upper']} 
+Take-profit at: {data['bb_upper']} (Take-profit confidence: {data['take_profit_confidence']}%)
 Current price: {data['price']} | Time: {get_time()}"""
+
 
 
 async def send_telegram_message(bot_token, chat_id, message):
