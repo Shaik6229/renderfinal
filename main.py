@@ -18,7 +18,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s �
 # Flask app to keep alive
 app = Flask(__name__)
 
-
 @app.route('/')
 def home():
     return "I'm alive!"
@@ -168,8 +167,6 @@ Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
 Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
 Take-profit at: {data['bb_upper']} (Take-profit confidence: {data['take_profit_confidence']}%)
 Current price: {data['price']} | Time: {get_time()}"""
-
-
 
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -353,11 +350,6 @@ def analyze(symbol, interval, tsl_percent):
             "note": f"Exception: {e}"
         }
 
-
-
-
-
-
 async def scan_symbols():
     pairs = [
         "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
@@ -391,7 +383,6 @@ async def scan_symbols():
 
             except Exception as e:
                 logging.error(f"Scan error for {symbol} {interval}: {e}")
-
 
 async def main_loop():
     while True:
