@@ -143,18 +143,18 @@ def interpret_confidence(conf):
         return f"{conf}% ❌ *Not strong* — avoid or wait"
 
 def entry_msg(data):
-    category = categorize_by_mcap(data['symbol'])
-
-    suggestion = interpret_confidence(data['entry_confidence'])
+    category   = categorize_by_mcap(data['symbol'])
+    # use the new final_entry_confidence instead of the old entry_confidence
+    suggestion = interpret_confidence(data['final_entry_confidence'])
 
     return f"""🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}] 
-*Entry confidence:* {suggestion}
+*Final confidence:* {suggestion}
 RSI: {data['rsi']} | Stochastic %K: {data['stoch_k']} / %D: {data['stoch_d']}
 Volume Spike: {"✅" if data['volume_spike'] else "❌"}
 Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"}
 Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
 Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
-Initial SL: {data['initial_sl']} | Take-profit: {data['bb_upper']} | TSL: {data['tsl_level']} 
+Initial SL: {data['initial_sl']} | Take‑profit: {data['bb_upper']} | TSL: {data['tsl_level']} 
 Current price: {data['price']} | Time: {get_time()}"""
 
 
@@ -165,8 +165,9 @@ Volume Spike: {"✅" if data['volume_spike'] else "❌"}
 Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"}
 Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
 Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
-Take-profit at: {data['bb_upper']} (Take-profit confidence: {data['take_profit_confidence']}%)
+Take‑profit at: {data['bb_upper']} (Final TP confidence: {data['final_tp_confidence']}%)
 Current price: {data['price']} | Time: {get_time()}"""
+
 
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -310,6 +311,12 @@ def analyze(symbol, interval, tsl_percent):
         tp_confidence = min(tp_confidence, 100)
         tp = tp_confidence >= 50
 
+                # ——— FINAL COMBINED CONFIDENCES ———
+        # Give 80% weight to the core score, 20% to Stoch overall
+        final_entry_conf = int(entry_confidence * 0.8 + stoch_overall * 0.2)
+        final_tp_conf    = int(tp_confidence    * 0.8 + stoch_overall * 0.2)
+
+
         # Return everything (including new stoch_conf1…4)
         return {
             "entry": entry,
@@ -333,6 +340,8 @@ def analyze(symbol, interval, tsl_percent):
             "stochastic_d4": stoch_d4,
             "stoch_conf4": stoch_conf4,
             "stoch_overall": stoch_overall,
+            "final_entry_confidence": final_entry_conf,
+            "final_tp_confidence":    final_tp_conf,
         }
 
     except Exception as e:
