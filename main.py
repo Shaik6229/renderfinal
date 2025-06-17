@@ -342,14 +342,13 @@ async def scan_symbols():
                     msg = entry_msg(data)
                     await send_telegram_message(bot_token, chat_id, msg)
                 elif (data['take_profit'] 
-                      and data.get('take_profit_confidence', 0) > 75 
+                      and data.get('take_profit_confidence', 0) > 60 
                       and alert_cooldown_passed(symbol, interval, 'tp', cooldown)):
                     msg = tp_msg(data)
                     await send_telegram_message(bot_token, chat_id, msg)
 
             except Exception as e:
                 logging.error(f"Scan error for {symbol} {interval}: {e}")
-
 
 
 async def main_loop():
