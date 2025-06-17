@@ -134,25 +134,26 @@ def interpret_confidence(conf):
     if conf >= 85:
         return f"{conf}% ✅ *Strong setup* — consider full position"
     elif conf >= 70:
-        return f"{conf}% ⚠️ *Decent setup* — consider half position"
-    elif conf >= 50:
-        return f"{conf}% 🧪 *Weak setup* — small size or wait"
+        return f"{conf}% ⚡ *Decent setup* — consider half position"
+    elif conf >= 60:
+        return f"{conf}% 🟣 *Possible opportunity* — small size or wait for confirmation"
     else:
-        return f"{conf}% ❌ *Low confidence* — better to skip"
+        return f"{conf}% ❌ *Not strong* — avoid or wait"
 
 def entry_msg(data):
     category = categorize_by_mcap(data['symbol'])
+
     suggestion = interpret_confidence(data['confidence'])
-    return f"""
-🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}]
+
+    return f"""🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}] 
 *Confidence:* {suggestion}
-RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price at Lower BB ✅ | Volume Spike {'✅' if data['volume_spike'] else '❌'} | Trend: {'Bullish ✅' if data['trend'] else '❌'}
-Suppression: {'Yes ❌' if data['suppressed'] else 'No ✅'} | RSI Divergence: {'Yes ✅' if data['divergence'] else 'No ❌'}
-Initial SL: {data['initial_sl']}
-TP Target: {data['bb_upper']} | Suggested TSL: {data['tsl_level']} (Trail {round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
-Price: {data['price']} | Time: {get_time()}
-"""
+RSI: {data['rsi']} | Stochastic %K: {data['stoch_k']} / %D: {data['stoch_d']}
+Volume Spike: {"✅" if data['volume_spike'] else "❌"}
+Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"}
+Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
+Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
+Initial SL: {data['initial_sl']} | Take-profit: {data['bb_upper']} | TSL: {data['tsl_level']} 
+Current price: {data['price']} | Time: {get_time()}"""
 
 def tp_msg(data):
     category = categorize_by_mcap(data['symbol'])
@@ -215,11 +216,19 @@ def analyze(symbol, interval, tsl_percent):
         tsl_level = highest * (1 - tsl_percent)
         initial_sl = df['low'].iloc[-5:].min()
         confidence = 0
-        confidence += 20 if trend else 0
-        confidence += 20 if vol_spike else 0
-        confidence += 20 if not suppressed else 0
-        confidence += 20 if divergence else 0
-        confidence += 20 if entry else 0
+if trend:
+    confidence += 20
+if vol_spike:
+    confidence += 20
+if not suppressed:
+    confidence += 20
+if divergence:
+    confidence += 20
+if entry:
+    confidence += 20
+
+# Now confidence is a score from 0-100
+
         return {
             'symbol': symbol,
             'interval': interval,
