@@ -206,25 +206,24 @@ def analyze(symbol, interval, tsl_percent):
                 "note": "Insufficient data"
             }
 
-        # Compute indicators
+        # Perform Indicator Calculations
         trend = check_trend(symbol, interval)
-vol_spike = volume_spike(df, symbol)
-suppressed = is_suppressed(df)
-divergence = rsi_divergence(df)
-rsi = RSIIndicator(close=df['close']).rsi().iloc[-1]
-stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
-stoch_k = stoch.stochastic_k().iloc[-1]
-stoch_d = stoch.stochastic_d().iloc[-1]
-bb = BollingerBands(close=df['close'], window=20, window_dev=2)
-bb_upper = bb.bollinger_hband().iloc[-1]
-bb_lower = bb.bollinger_lband().iloc[-1]
+        vol_spike = volume_spike(df, symbol)
+        suppressed = is_suppressed(df)
+        divergence = rsi_divergence(df)
+        rsi = RSIIndicator(close=df['close']).rsi().iloc[-1]
+        stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
+        stoch_k = stoch.stochastic_k().iloc[-1]
+        stoch_d = stoch.stochastic_d().iloc[-1]
+        bb = BollingerBands(close=df['close'], window=20, window_dev=2)
+        bb_upper = bb.bollinger_hband().iloc[-1]
+        bb_lower = bb.bollinger_lband().iloc[-1]
 
-# Define price first
-price = df['close'].iloc[-1]
+        # Define price first
+        price = df['close'].iloc[-1]
 
-# Then compute initial_sl
-initial_sl = price * (1 - 0.05)
-
+        # Then compute initial_sl
+        initial_sl = price * (1 - 0.05)
 
         # MACD Indicator
         macd = MACDIndicator(close=df['close'], window_slow=26, window_fast=12, window_signal=9)
@@ -247,7 +246,7 @@ initial_sl = price * (1 - 0.05)
         # Define entry condition
         entry = price < bb_lower
 
-        # Normalized entry confidence weights summing to 100
+        # Normalized entry confidence weights
         weights = {
             "trend": 15,
             "vol_spike": 10,
@@ -276,10 +275,10 @@ initial_sl = price * (1 - 0.05)
 
         entry_confidence = min(entry_confidence, 100)
 
-        if entry_confidence < 50:  # Changed threshold here
-            entry = False  # Suppress weak entry signals
+        if entry_confidence < 50:
+            entry = False
 
-        # Take-profit confidence weights sum to 100
+        # Take-profit confidence weights
         tp_confidence = 0
         if rsi > 70:
             tp_confidence += 25
@@ -291,8 +290,7 @@ initial_sl = price * (1 - 0.05)
             tp_confidence += 25
 
         tp_confidence = min(tp_confidence, 100)
-
-        tp = tp_confidence >= 50  # Changed threshold here
+        tp = tp_confidence >= 50
 
         return {
             "entry": entry,
@@ -318,6 +316,7 @@ initial_sl = price * (1 - 0.05)
             "higher_tf_conf": 0,
             "note": f"Exception: {e}"
         }
+
 
 async def scan_symbols():
     pairs = [
