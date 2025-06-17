@@ -283,12 +283,13 @@ async def analyze(symbol, interval, tsl_percent):
 
         # Four Stochastics
         windows = STOCH_CONFIG.get(interval, [])
-        stoch_results = []
-        for w in windows:
-            try:
-                st = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=w, smooth_window=3)
-                k = st.stoch().iloc[-1]
-                d = st.stoch_signal().iloc[-1]
-            except Exception as e:
-                logging.error(f"Error Stochastic for {symbol} {interval} window {w}: {e}
+stoch_results = []
+for w in windows:
+    try:
+        st = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=w, smooth_window=3)
+        k = st.stoch().iloc[-1]
+        d = st.stoch_signal().iloc[-1]
+    except Exception as e:
+        logging.error(f"Error Stochastic for {symbol} {interval} window {w}: {e}")
+        continue
 "
