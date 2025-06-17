@@ -214,10 +214,12 @@ def analyze(symbol, interval, tsl_percent):
         vol_spike = volume_spike(df, symbol)
         suppressed = is_suppressed(df)
         divergence = rsi_divergence(df)
-        rsi = RSIIndicator(close=df['close']).rsi().iloc[-1]
+        rsi = RSIIndicator(close=df['close'], window=14).rsi().iloc[-1]
+
         stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
-        stoch_k = stoch.k().iloc[-1]
-        stoch_d = stoch.d().iloc[-1]
+        stoch_k = stoch.stochastic_k().iloc[-1]
+        stoch_d = stoch.stochastic_d().iloc[-1]
+
         bb = BollingerBands(close=df['close'], window=20, window_dev=2)
         bb_upper = bb.bollinger_hband().iloc[-1]
         bb_lower = bb.bollinger_lband().iloc[-1]
@@ -229,7 +231,7 @@ def analyze(symbol, interval, tsl_percent):
         initial_sl = price * (1 - 0.05)
 
         # MACD Indicator
-        macd = MACDIndicator(close=df['close'], window_slow=26, window_fast=12, window_signal=9)
+        macd = MACD(close=df['close'], window_slow=26, window_fast=12, window_signal=9)
         macd_line = macd.macd().iloc[-1]
         signal_line = macd.signal().iloc[-1]
         prev_macd = macd.macd().iloc[-2]
@@ -240,7 +242,7 @@ def analyze(symbol, interval, tsl_percent):
         higher_tf_conf = 0
         df_1d = fetch_ohlcv(symbol, "1d")
         if df_1d is not None and len(df_1d) > 100:
-            macd_1d = MACDIndicator(close=df_1d['close'], window_slow=26, window_fast=12, window_signal=9)
+            macd_1d = MACD(close=df_1d['close'], window_slow=26, window_fast=12, window_signal=9)
             macd_line_1d = macd_1d.macd().iloc[-1]
             signal_line_1d = macd_1d.signal().iloc[-1]
             if macd_line_1d > signal_line_1d:
@@ -319,6 +321,7 @@ def analyze(symbol, interval, tsl_percent):
             "higher_tf_conf": 0,
             "note": f"Exception: {e}"
         }
+
 
 
 
