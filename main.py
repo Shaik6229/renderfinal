@@ -209,7 +209,7 @@ def analyze(symbol, interval, tsl_percent):
         bb_lower = bb.bollinger_lband().iloc[-1]
         initial_sl = price * (1 - 0.05)  # example 5% drop
 
-        # entry condition
+        # Define entry first
         entry = price < bb_lower
 
         entry_confidence = 0
@@ -226,7 +226,7 @@ def analyze(symbol, interval, tsl_percent):
         entry_confidence = min(entry_confidence, 100)
 
 
-        # Take-profit confidence (separate)
+        # Take-profit confidence
         tp_confidence = 0
         if rsi > 70:
             tp_confidence += 25
@@ -236,6 +236,7 @@ def analyze(symbol, interval, tsl_percent):
             tp_confidence += 25
         if not suppressed:
             tp_confidence += 25
+
         tp_confidence = min(tp_confidence, 100)
 
 
@@ -263,6 +264,7 @@ def analyze(symbol, interval, tsl_percent):
     except Exception as e:
         logging.error(f"Error analyzing {symbol} {interval}: {e}")
         return None
+
 
 
 async def scan_symbols():
