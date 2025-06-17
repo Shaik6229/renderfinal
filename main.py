@@ -216,10 +216,27 @@ def analyze(symbol, interval, tsl_percent):
         divergence = rsi_divergence(df)
         rsi = RSIIndicator(close=df['close'], window=14).rsi().iloc[-1]
 
-        stoch = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
-        stoch_k = stoch.stochastic_k().iloc[-1]
-        stoch_d = stoch.stochastic_d().iloc[-1]
+        # Stochastic 1
+        stoch_1 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=14)
+        stoch_k1 = stoch_1.stochastic_k().iloc[-1]
+        stoch_d1 = stoch_1.stochastic_d().iloc[-1]
 
+        # Stochastic 2
+        stoch_2 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=21)
+        stoch_k2 = stoch_2.stochastic_k().iloc[-1]
+        stoch_d2 = stoch_2.stochastic_d().iloc[-1]
+
+        # Stochastic 3
+        stoch_3 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=40)
+        stoch_k3 = stoch_3.stochastic_k().iloc[-1]
+        stoch_d3 = stoch_3.stochastic_d().iloc[-1]
+
+        # Stochastic 4
+        stoch_4 = StochasticOscillator(high=df['high'], low=df['low'], close=df['close'], window=60)
+        stoch_k4 = stoch_4.stochastic_k().iloc[-1]
+        stoch_d4 = stoch_4.stochastic_d().iloc[-1]
+
+        # Bollinger Bands
         bb = BollingerBands(close=df['close'], window=20, window_dev=2)
         bb_upper = bb.bollinger_hband().iloc[-1]
         bb_lower = bb.bollinger_lband().iloc[-1]
@@ -287,8 +304,14 @@ def analyze(symbol, interval, tsl_percent):
         tp_confidence = 0
         if rsi > 70:
             tp_confidence += 25
-        if stoch_k > 80 and stoch_d > 80:
-            tp_confidence += 25
+        if stoch_k1 > 80 and stoch_d1 > 80:
+            tp_confidence += 10
+        if stoch_k2 > 80 and stoch_d2 > 80:
+            tp_confidence += 10
+        if stoch_k3 > 80 and stoch_d3 > 80:
+            tp_confidence += 10
+        if stoch_k4 > 80 and stoch_d4 > 80:
+            tp_confidence += 10
         if price >= bb_upper:
             tp_confidence += 25
         if not suppressed:
@@ -305,7 +328,15 @@ def analyze(symbol, interval, tsl_percent):
             "entry_price": price,
             "initial_stoploss": initial_sl,
             "macd_cross_up": macd_cross_up,
-            "higher_tf_conf": higher_tf_conf
+            "higher_tf_conf": higher_tf_conf,
+            "stochastic_k1": stoch_k1,
+            "stochastic_d1": stoch_d1,
+            "stochastic_k2": stoch_k2,
+            "stochastic_d2": stoch_d2,
+            "stochastic_k3": stoch_k3,
+            "stochastic_d3": stoch_d3,
+            "stochastic_k4": stoch_k4,
+            "stochastic_d4": stoch_d4
         }
 
     except Exception as e:
@@ -321,6 +352,7 @@ def analyze(symbol, interval, tsl_percent):
             "higher_tf_conf": 0,
             "note": f"Exception: {e}"
         }
+
 
 
 
