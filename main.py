@@ -155,6 +155,18 @@ Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
 Initial SL: {data['initial_sl']} | Take-profit: {data['bb_upper']} | TSL: {data['tsl_level']} 
 Current price: {data['price']} | Time: {get_time()}"""
 
+
+def tp_msg(data):
+    return f"""🟣 *[TAKE-PROFIT]* — {data['symbol']} 
+RSI: {data['rsi']} | Stochastic %K: {data['stoch_k']} / %D: {data['stoch_d']}
+Volume Spike: {"✅" if data['volume_spike'] else "❌"}
+Suppression: {"Yes ❌" if data['suppressed'] else "No ✅"}
+Divergence: {"Yes ✅" if data['divergence'] else "No ❌"}
+Trend: {"Bullish ✅" if data['trend'] else "Bearish ❌"}
+Take-profit at: {data['bb_upper']} 
+Current price: {data['price']} | Time: {get_time()}"""
+
+
 async def send_telegram_message(bot_token, chat_id, message):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'}
