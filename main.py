@@ -201,7 +201,7 @@ def analyze(symbol, interval, tsl_percent):
         bb_upper = bb.bollinger_hband().iloc[-1]
         price = df['close'].iloc[-1]
         trend = check_trend(symbol, interval)
-        htf_trend = check_trend(symbol, '1d')  # 1D HTF filter
+        htf_trend = check_trend(symbol, '1d') if interval == "4h" else True  # Only apply for 4H
         suppressed = is_suppressed(df)
         vol_spike = volume_spike(df, symbol)
         divergence = rsi_divergence(df)
@@ -253,7 +253,7 @@ async def scan_symbols():
         "ENSUSDT", "FLUXUSDT", "SFPUSDT", "ILVUSDT", "AGIXUSDT",
         "OCEANUSDT", "DYDXUSDT", "MKRUSDT", "IDUSDT", "TAOUSDT"
     ]
-    intervals = {"4h": 60, "1d": 360}  # 4H entries, 1D take profits
+    intervals = {"4h": 60, "1d": 360}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -262,13 +262,13 @@ async def scan_symbols():
             data = analyze(symbol, interval, 0.25 if interval == "4h" else 0.35)
             if not data:
                 continue
-            if interval == "4h" and data['entry'] and alert_cooldown_passed(symbol, interval, 'entry', cooldown):
+            if data['entry'] and alert_cooldown_passed(symbol, interval, 'entry', cooldown):
                 msg = entry_msg(data)
                 await send_telegram_message(bot_token, chat_id, msg)
-            elif interval == "1d" and data['tp'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
+            elif data['tp'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
                 msg = tp_msg(data)
                 await send_telegram_message(bot_token, chat_id, msg)
-
+                
 async def main_loop():
     while True:
         await scan_symbols()
