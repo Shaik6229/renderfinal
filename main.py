@@ -189,9 +189,10 @@ def alert_cooldown_passed(symbol, interval, kind, cooldown_minutes):
 
 def analyze(symbol, interval, tsl_percent):
     df = fetch_ohlcv(symbol, interval)
-    
-    if df.empty or len(df) < 220:  # BB(200) + 20 for rolling safety
-        return None  # <-- This must be indented under the ifl
+
+    if df.empty or len(df) < 220:  # BB(200) + margin for rolling window
+        return None
+
     try:
         rsi = RSIIndicator(df['close']).rsi().iloc[-1]
         stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
@@ -201,29 +202,52 @@ def analyze(symbol, interval, tsl_percent):
         bb_lower = bb.bollinger_lband().iloc[-1]
         bb_upper = bb.bollinger_hband().iloc[-1]
         price = df['close'].iloc[-1]
+
         trend = check_trend(symbol, interval)
-        htf_trend = check_trend(symbol, '1d') if interval == "4h" else True  # Only apply for 4H
+        htf_trend = check_trend(symbol, '1d') if interval == "4h" else True
         suppressed = is_suppressed(df)
         vol_spike = volume_spike(df, symbol)
         divergence = rsi_divergence(df)
-        entry = (price <= bb_lower) and (rsi < 35) and (stoch_k < 30 and stoch_d < 30) and trend and htf_trend and not suppressed and vol_spike
-        tp = (price >= bb_upper) and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
+
+        # Entry sub-conditions
+        entry_conditions = {
+            'price_below_bb': price <= bb_lower,
+            'rsi_oversold': rsi < 35,
+            'stoch_oversold': stoch_k < 30 and stoch_d < 30,
+        }
+
+        entry = (
+            entry_conditions['price_below_bb'] and
+            entry_conditions['rsi_oversold'] and
+            entry_conditions['stoch_oversold'] and
+            trend and htf_trend and not suppressed and vol_spike
+        )
+
+        tp = price >= bb_upper and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
         highest = df['high'].max()
         tsl_level = highest * (1 - tsl_percent)
         initial_sl = df['low'].iloc[-5:].min()
+
+        # Confidence scoring (max = 120)
         confidence = 0
         confidence += 20 if trend else 0
         confidence += 20 if htf_trend else 0
         confidence += 15 if vol_spike else 0
         confidence += 15 if not suppressed else 0
         confidence += 15 if divergence else 0
-        confidence += 15 if entry else 0
+        confidence += 15 if entry_conditions['price_below_bb'] else 0
+        confidence += 10 if entry_conditions['rsi_oversold'] else 0
+        confidence += 10 if entry_conditions['stoch_oversold'] else 0
+
+        # Normalize to 100 scale
+        normalized_confidence = round((confidence / 120) * 100, 2)
+
         return {
             'symbol': symbol,
             'interval': interval,
             'entry': entry,
             'tp': tp,
-            'confidence': confidence,
+            'confidence': normalized_confidence,
             'rsi': round(rsi, 2),
             'stoch_k': round(stoch_k, 2),
             'stoch_d': round(stoch_d, 2),
@@ -239,6 +263,7 @@ def analyze(symbol, interval, tsl_percent):
             'highest': round(highest, 4),
             'tsl_level': round(tsl_level, 4),
         }
+
     except Exception as e:
         logging.error(f"Error analyzing {symbol} {interval}: {e}")
         return None
