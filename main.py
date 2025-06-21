@@ -189,8 +189,9 @@ def alert_cooldown_passed(symbol, interval, kind, cooldown_minutes):
 
 def analyze(symbol, interval, tsl_percent):
     df = fetch_ohlcv(symbol, interval)
+    
     if df.empty or len(df) < 220:  # BB(200) + 20 for rolling safety
-    return None
+        return None  # <-- This must be indented under the ifl
     try:
         rsi = RSIIndicator(df['close']).rsi().iloc[-1]
         stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
