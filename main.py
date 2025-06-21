@@ -68,7 +68,7 @@ def fetch_ohlcv(symbol, interval, limit=500):
         return pd.DataFrame()
 
 def is_suppressed(df):
-    if df.empty or len(df) < 20:
+    if df.empty or len(df) < 220:  # Minimum required for BB(200) + rolling avg
         return True
     try:
         bb = BollingerBands(df['close'], window=200, window_dev=2)
