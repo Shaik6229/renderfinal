@@ -71,7 +71,7 @@ def is_suppressed(df):
     if df.empty or len(df) < 20:
         return True
     try:
-        bb = BollingerBands(df['close'])
+        bb = BollingerBands(df['close'], window=200, window_dev=2)
         width = bb.bollinger_hband() - bb.bollinger_lband()
         avg_width = width.rolling(window=20).mean().iloc[-1]
         return avg_width < 0.01 * df['close'].iloc[-1]
@@ -196,7 +196,7 @@ def analyze(symbol, interval, tsl_percent):
         stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
         stoch_k = stoch.stoch().iloc[-1]
         stoch_d = stoch.stoch_signal().iloc[-1]
-        bb = BollingerBands(df['close'])
+        bb = BollingerBands(df['close'], window=200, window_dev=2)
         bb_lower = bb.bollinger_lband().iloc[-1]
         bb_upper = bb.bollinger_hband().iloc[-1]
         price = df['close'].iloc[-1]
