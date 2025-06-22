@@ -24,26 +24,40 @@ def home():
 
 @app.route('/test-alert')
 def test_alert():
+    user_agent = request.headers.get('User-Agent', '')
+    logging.info(f"🔁 Ping received on /test-alert from: {user_agent}")
+
+    if 'UptimeRobot' in user_agent:
+        logging.info("⏸️ Skipping test alert — UptimeRobot ping detected.")
+        return "Ping received from UptimeRobot", 200
+
     secret_key = "asdf"
     key = request.args.get('key')
     if key != secret_key:
+        logging.warning("⚠️ Unauthorized access to /test-alert")
         return "Unauthorized", 401
+
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     message = "✅ Test alert from your Crypto Alert Bot!"
+
     if not bot_token or not chat_id:
+        logging.error("❌ Missing Telegram environment variables")
         return "❌ Missing environment variables!", 500
+
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {'chat_id': chat_id, 'text': message, 'parse_mode': 'Markdown'}
+
     try:
         resp = requests.post(url, data=data)
         if resp.status_code == 200:
+            logging.info("✅ Test alert sent successfully.")
             return "Test alert sent!"
         else:
-            logging.error(f"Failed to send test alert: {resp.text}")
+            logging.error(f"❌ Failed to send test alert: {resp.text}")
             return f"Failed to send test alert: {resp.text}", 500
     except Exception as e:
-        logging.error(f"Error sending test alert: {e}")
+        logging.error(f"❌ Error sending test alert: {e}")
         return f"Error sending test alert: {e}", 500
 
 def run():
