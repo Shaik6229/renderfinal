@@ -17,10 +17,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s �
 # Flask app for keep-alive
 app = Flask('')
 
-@app.route('/')
+@app.route("/", methods=["GET", "HEAD"])
 def home():
-    logging.info("📡 UptimeRobot ping received")
-    return "I'm alive!"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logging.info(f"📡 UptimeRobot ping received at {now}")
+    return "✅ Bot is running", 200
 
 @app.route('/test-alert')
 def test_alert():
