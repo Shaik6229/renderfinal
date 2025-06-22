@@ -46,7 +46,8 @@ def test_alert():
         return f"Error sending test alert: {e}", 500
 
 def run():
-    app.run(host='0.0.0.0', port=8080)
+    port = int(os.environ.get("PORT", 8080))  # Correct port for Render
+    app.run(host='0.0.0.0', port=port)
 
 # Globals
 alert_tracker = {}
