@@ -19,6 +19,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
+    logging.info("📡 UptimeRobot ping received")
     return "I'm alive!"
 
 @app.route('/test-alert')
