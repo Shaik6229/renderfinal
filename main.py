@@ -284,9 +284,7 @@ def analyze(symbol, interval, tsl_percent):
     except Exception as e:
         logging.error(f"Error analyzing {symbol} {interval}: {e}")
         return None
-
-async def scan_symbols():
-    pairs = [
+        
 async def scan_symbols():
     pairs = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
