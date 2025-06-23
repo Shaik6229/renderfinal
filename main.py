@@ -355,7 +355,7 @@ async def scan_symbols():
     "ONTUSDT", "MIOTAUSDT", "ONEUSDT", "STMXUSDT", "STORJUSDT", "HOTUSDT", "XMRUSDT", "PAXGUSDT", "TELUSDT", "RLCUSDT",
     "RLYUSDT", "TOMOUSDT", "UTKUSDT", "COTIUSDT", "CTKUSDT", "LITUSDT", "ACHUSDT", "ALICEUSDT", "YGGUSDT", "SUPERUSDT",
     "LPTUSDT", "PHBUSDT", "JOEUSDT", "GLMRUSDT"
-]
+    ]
     intervals = {"4h": 60, "1d": 360}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
@@ -366,15 +366,17 @@ async def scan_symbols():
             if not data:
                 continue
 
-            # Always send entry alert based on cooldown
-            if alert_cooldown_passed(symbol, interval, 'entry', cooldown):
-                msg = entry_msg(data)
-                await send_telegram_message(bot_token, chat_id, msg)
+            # ✅ Skip alerts with confidence below 60%
+            if data["confidence"] >= 60:
+                # Entry Alert
+                if alert_cooldown_passed(symbol, interval, 'entry', cooldown):
+                    msg = entry_msg(data)
+                    await send_telegram_message(bot_token, chat_id, msg)
 
-            # Always send TP alert based on cooldown
-            if alert_cooldown_passed(symbol, interval, 'tp', cooldown):
-                msg = tp_msg(data)
-                await send_telegram_message(bot_token, chat_id, msg)
+                # TP Alert
+                if data.get("tp") and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
+                    msg = tp_msg(data)
+                    await send_telegram_message(bot_token, chat_id, msg)
                 
 async def main_loop():
     while True:
