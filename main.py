@@ -8,7 +8,7 @@ from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
-from ta.trend import EMAIndicator
+from ta.trend import EMAIndicator, MACD 
 from threading import Thread
 
 # Logging
@@ -155,32 +155,68 @@ def interpret_confidence(conf):
 def entry_msg(data):
     category = categorize_by_mcap(data['symbol'])
     suggestion = interpret_confidence(data['confidence'])
+
+    ist_time = get_time()
+    utc_time = datetime.utcnow().strftime("%Y-%m-%d %I:%M:%S %p UTC")
+    tsl_trail_pct = round((1 - data['tsl_level'] / data['highest']) * 100, 2)
+
     return f"""
-🟢 *[ENTRY]* — {data['symbol']} ({data['interval']}) [{category}]
+🟢 *[ENTRY @ {data['price']}] — {data['symbol']} ({data['interval']})* [{category}]
 *Confidence:* {suggestion}
-RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price at Lower BB ✅ | Volume Spike {'✅' if data['volume_spike'] else '❌'} | Trend: {'Bullish ✅' if data['trend'] else '❌'}
-HTF Trend (1D): {'Bullish ✅' if data['htf_trend'] else '❌'}
-Suppression: {'Yes ❌' if data['suppressed'] else 'No ✅'} | RSI Divergence: {'Yes ✅' if data['divergence'] else 'No ❌'}
-Initial SL: {data['initial_sl']}
-TP Target: {data['bb_upper']} | Suggested TSL: {data['tsl_level']} (Trail {round((1 - data['tsl_level']/data['highest']) * 100, 2)}%)
-Price: {data['price']} | Time: {get_time()}
+
+📊 *Indicators:*
+- RSI: {data['rsi']} ({'Oversold ✅' if data['rsi'] < 35 else '❌'})
+- Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']} ({'✅' if data['stoch_k'] < 30 and data['stoch_d'] < 30 else '❌'})
+- MACD: Line {data['macd_line']} | Signal {data['macd_signal']} | Hist {data['macd_hist']} ({'Bullish ✅' if data['macd_bullish'] else '❌'})
+- Price below Lower BB: {'✅' if data['price'] <= data['bb_lower'] else '❌'}
+
+📈 *Trend & Setup:*
+- Intraday Trend: {'Bullish ✅' if data['trend'] else '❌'}
+- HTF Trend (1D): {'Bullish ✅' if data['htf_trend'] else '❌'}
+- Volume Spike: {'✅' if data['volume_spike'] else '❌'}
+- RSI Divergence: {'✅' if data['divergence'] else '❌'}
+- Suppression: {'❌ Yes' if data['suppressed'] else 'No ✅'}
+
+🛡 *Risk Setup:*
+- Initial SL: {data['initial_sl']}
+- TP (Upper BB): {data['bb_upper']}
+- Suggested TSL: {data['tsl_level']} (Trail {tsl_trail_pct}%)
+
+⏰ *Time:*
+- IST: {ist_time}
+- UTC: {utc_time}
 """
 
 def tp_msg(data):
     category = categorize_by_mcap(data['symbol'])
+
+    # TP confidence scoring
     confidence = 0
     confidence += 25 if data['rsi'] > 70 else 0
     confidence += 25 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
     confidence += 25 if data['price'] >= data['bb_upper'] else 0
     confidence += 25 if not data['suppressed'] else 0
+    confidence += 25 if data['macd_line'] < data['macd_signal'] else 0  # MACD bearish
     confidence = min(confidence, 100)
+
     suggestion = interpret_confidence(confidence)
+    ist_time = get_time()
+    utc_time = datetime.utcnow().strftime("%Y-%m-%d %I:%M:%S %p UTC")
+
     return f"""
-🟡 *[TAKE PROFIT]* — {data['symbol']} ({data['interval']}) [{category}]
+🟡 *[TAKE PROFIT @ {data['price']}] — {data['symbol']} ({data['interval']})* [{category}]
 *Confidence:* {suggestion}
-Price near Upper BB ✅ | RSI: {data['rsi']} | Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']}
-Price: {data['price']} | Time: {get_time()}
+
+📊 *Indicators:*
+- RSI: {data['rsi']} ({'Overbought ✅' if data['rsi'] > 70 else '❌'})
+- Stoch %K: {data['stoch_k']} / %D: {data['stoch_d']} ({'Overbought ✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'})
+- Price near Upper BB: {'✅' if data['price'] >= data['bb_upper'] else '❌'}
+- MACD: Line {data['macd_line']} | Signal {data['macd_signal']} ({'Bearish ✅' if data['macd_line'] < data['macd_signal'] else '❌'})
+- Suppression: {'❌ Yes' if data['suppressed'] else 'No ✅'}
+
+⏰ *Time:*
+- IST: {ist_time}
+- UTC: {utc_time}
 """
 
 async def send_telegram_message(bot_token, chat_id, message):
@@ -211,15 +247,25 @@ def analyze(symbol, interval, tsl_percent):
         return None
 
     try:
+        # Indicators
         rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+
+        macd_calc = MACD(close=df['close'])
+        macd_line = macd_calc.macd().iloc[-1]
+        macd_signal = macd_calc.macd_signal().iloc[-1]
+        macd_hist = macd_calc.macd_diff().iloc[-1]
+        macd_bullish = macd_line > macd_signal
+
         stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
         stoch_k = stoch.stoch().iloc[-1]
         stoch_d = stoch.stoch_signal().iloc[-1]
+
         bb = BollingerBands(df['close'], window=200, window_dev=2)
         bb_lower = bb.bollinger_lband().iloc[-1]
         bb_upper = bb.bollinger_hband().iloc[-1]
         price = df['close'].iloc[-1]
 
+        # Additional logic
         trend = check_trend(symbol, interval)
         htf_trend = check_trend(symbol, '1d') if interval == "4h" else True
         suppressed = is_suppressed(df)
@@ -231,33 +277,42 @@ def analyze(symbol, interval, tsl_percent):
             'price_below_bb': price <= bb_lower,
             'rsi_oversold': rsi < 35,
             'stoch_oversold': stoch_k < 30 and stoch_d < 30,
+            'macd_bullish': macd_bullish
         }
 
         entry = (
             entry_conditions['price_below_bb'] and
             entry_conditions['rsi_oversold'] and
             entry_conditions['stoch_oversold'] and
+            entry_conditions['macd_bullish'] and
             trend and htf_trend and not suppressed and vol_spike
         )
 
-        tp = price >= bb_upper and (rsi > 70 or (stoch_k > 80 and stoch_d > 80))
+        # Include MACD bearish in TP logic
+        macd_bearish = macd_line < macd_signal
+        tp = (
+            price >= bb_upper and
+            (rsi > 70 or (stoch_k > 80 and stoch_d > 80)) and
+            macd_bearish
+        )
+
         highest = df['high'].max()
         tsl_level = highest * (1 - tsl_percent)
         initial_sl = df['low'].iloc[-5:].min()
 
-        # Confidence scoring (max = 120)
+        # ✅ Confidence scoring (max = 135 with MACD)
         confidence = 0
+        confidence += 25 if htf_trend else 0
         confidence += 20 if trend else 0
-        confidence += 20 if htf_trend else 0
-        confidence += 15 if vol_spike else 0
-        confidence += 15 if not suppressed else 0
+        confidence += 20 if vol_spike else 0
+        confidence += 10 if not suppressed else 0
         confidence += 15 if divergence else 0
-        confidence += 15 if entry_conditions['price_below_bb'] else 0
+        confidence += 10 if entry_conditions['price_below_bb'] else 0
         confidence += 10 if entry_conditions['rsi_oversold'] else 0
         confidence += 10 if entry_conditions['stoch_oversold'] else 0
+        confidence += 15 if entry_conditions['macd_bullish'] else 0
 
-        # Normalize to 100 scale
-        normalized_confidence = round((confidence / 120) * 100, 2)
+        normalized_confidence = round((confidence / 135) * 100, 2)
 
         return {
             'symbol': symbol,
@@ -279,6 +334,10 @@ def analyze(symbol, interval, tsl_percent):
             'initial_sl': round(initial_sl, 4),
             'highest': round(highest, 4),
             'tsl_level': round(tsl_level, 4),
+            'macd_line': round(macd_line, 4),
+            'macd_signal': round(macd_signal, 4),
+            'macd_hist': round(macd_hist, 4),
+            'macd_bullish': macd_bullish,
         }
 
     except Exception as e:
