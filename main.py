@@ -287,6 +287,8 @@ def analyze(symbol, interval, tsl_percent):
 
 async def scan_symbols():
     pairs = [
+async def scan_symbols():
+    pairs = [
         "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
         "AVAXUSDT", "DOTUSDT", "MATICUSDT", "NEARUSDT", "ATOMUSDT",
         "LTCUSDT", "LINKUSDT", "BCHUSDT", "EGLDUSDT", "XLMUSDT",
@@ -305,10 +307,14 @@ async def scan_symbols():
             data = analyze(symbol, interval, 0.25 if interval == "4h" else 0.35)
             if not data:
                 continue
-            if data['entry'] and alert_cooldown_passed(symbol, interval, 'entry', cooldown):
+
+            # Always send entry alert based on cooldown
+            if alert_cooldown_passed(symbol, interval, 'entry', cooldown):
                 msg = entry_msg(data)
                 await send_telegram_message(bot_token, chat_id, msg)
-            elif data['tp'] and alert_cooldown_passed(symbol, interval, 'tp', cooldown):
+
+            # Always send TP alert based on cooldown
+            if alert_cooldown_passed(symbol, interval, 'tp', cooldown):
                 msg = tp_msg(data)
                 await send_telegram_message(bot_token, chat_id, msg)
                 
