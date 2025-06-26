@@ -360,7 +360,8 @@ async def scan_symbols():
     "XMRUSDT", "TELUSDT", "RLCUSDT", "RLYUSDT", "UTKUSDT",
     "COTIUSDT", "CTKUSDT", "LITUSDT", "ACHUSDT", "ALICEUSDT", "YGGUSDT",
     "SUPERUSDT", "LPTUSDT", "PHBUSDT", "JOEUSDT", "GLMRUSDT", "VICUSDT",
-    "DOGEUSDT", "DAIUSDT", "SUIUSDT", "TONUSDT"
+    "DOGEUSDT", "DAIUSDT", "SUIUSDT", "TONUSDT",
+    "SAHARAUSDT", "SPKUSDT"
     ]
     intervals = {"4h": 60, "1d": 360}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
