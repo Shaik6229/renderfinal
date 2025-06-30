@@ -249,7 +249,7 @@ def analyze(symbol, interval, tsl_percent):
             'highest': round(df['high'].max(), 4), 'tsl_level': round(df['high'].max() * (1 - tsl_percent), 4),
             'macd_line': round(macd_line, 4), 'macd_signal': round(macd_signal, 4),
             'macd_hist': round(macd_hist, 4), 'macd_bullish': macd_bullish,
-            'entry': normalized_conf >= 30, 'tp': tp
+            'entry': normalized_conf >= 50, 'tp': tp
         }
     except Exception as e:
         logging.error(f"Analysis error {symbol} {interval}: {e}")
