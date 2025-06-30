@@ -273,12 +273,7 @@ def analyze(symbol, interval, tsl_percent):
         divergence = rsi_divergence(df)
 
         # Entry sub-conditions
-        entry_conditions = {
-            'price_below_bb': price <= bb_lower,
-            'rsi_oversold': rsi < 35,
-            'stoch_oversold': stoch_k < 30 and stoch_d < 30,
-            'macd_bullish': macd_bullish
-        }
+        entry = normalized_confidence >= 60
 
         entry = (
             entry_conditions['price_below_bb'] and
