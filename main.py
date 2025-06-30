@@ -267,7 +267,7 @@ def analyze(symbol, interval, tsl_percent):
 
         # Additional logic
         trend = check_trend(symbol, interval)
-        htf_trend = check_trend(symbol, '1d') if interval == "4h" else True
+        htf_trend = check_trend(symbol, '1d') if interval in ["1h", "4h"] else True
         suppressed = is_suppressed(df)
         vol_spike = volume_spike(df, symbol)
         divergence = rsi_divergence(df)
@@ -363,7 +363,11 @@ async def scan_symbols():
     "DOGEUSDT", "DAIUSDT", "SUIUSDT", "TONUSDT",
     "SAHARAUSDT", "SPKUSDT"
     ]
-    intervals = {"4h": 60, "1d": 360}
+    intervals = {
+    "1h": 30,   # Cooldown in minutes
+    "4h": 60,
+    "1d": 360
+    }
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
