@@ -147,6 +147,7 @@ def entry_msg(data):
     ist_time = get_time()
     utc_time = datetime.utcnow().strftime("%d-%b-%Y %H:%M")
     tsl_pct = round((1 - data['tsl_level'] / data['highest']) * 100, 2)
+    htf_label = "1D" if data['interval'] in ["1h", "4h"] else "1W"
 
     return f"""
 🚀 ENTRY SIGNAL — {data['symbol']} @ ${data['price']} ({data['interval']})
@@ -156,7 +157,7 @@ def entry_msg(data):
 • {'✅' if data['rsi'] < 35 else '❌'} RSI: {'Rebounding from oversold (RSI = ' + str(data['rsi']) + ')' if data['rsi'] < 35 else 'Neutral/High (RSI = ' + str(data['rsi']) + ')'}
 • {'✅' if data['stoch_k'] < 30 and data['stoch_d'] < 30 else '❌'} Stochastic Oversold (K: {data['stoch_k']}, D: {data['stoch_d']})
 • {'✅' if data['volume_spike'] else '❌'} Volume Spike detected
-• {'✅' if data['htf_trend'] else '❌'} HTF Trend (1D): {'Bullish' if data['htf_trend'] else 'Bearish'}
+• {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Bullish' if data['htf_trend'] else 'Bearish'}
 • {'✅' if not data['suppressed'] else '❌'} Suppression: {'No' if not data['suppressed'] else 'Yes'}
 • {'✅' if data['divergence'] else '❌'} Divergence: {'Bullish RSI Divergence' if data['divergence'] else 'None'}
 
@@ -167,12 +168,13 @@ def entry_msg(data):
 🕒 IST: {ist_time}
 """.strip()
 
+
 def tp_msg(data):
     ist_time = get_time()
     utc_time = datetime.utcnow().strftime("%d-%b-%Y %H:%M")
-
     confidence = data['tp_conf']
     tsl_pct = round((1 - data['tsl_level'] / data['highest']) * 100, 2)
+    htf_label = "1D" if data['interval'] in ["1h", "4h"] else "1W"
 
     return f"""
 🎯 TAKE PROFIT SIGNAL — {data['symbol']} @ ${data['price']} ({data['interval']})
@@ -183,7 +185,7 @@ def tp_msg(data):
 • {'✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'} Stochastic Overbought (K: {data['stoch_k']}, D: {data['stoch_d']})
 • {'❌' if data['volume_spike'] else '✅'} Volume Weakening
 • {'✅' if data['price'] >= data['bb_upper'] else '❌'} Resistance Zone (Upper BB hit)
-• {'✅' if data['htf_trend'] else '❌'} HTF Trend: {'Still Bullish (be cautious)' if data['htf_trend'] else 'Bearish'}
+• {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Still Bullish (be cautious)' if data['htf_trend'] else 'Bearish'}
 
 🎯 Confidence Score: {confidence}% — {confidence_tag(confidence)}
 🛡️ Suggested TSL: {tsl_pct}%
@@ -191,7 +193,6 @@ def tp_msg(data):
 🕒 UTC: {utc_time}  
 🕒 IST: {ist_time}
 """.strip()
-
 
 # === Analysis Logic ===
 def analyze(symbol, interval, tsl_percent):
