@@ -302,7 +302,7 @@ async def scan_symbols():
         "DOGEUSDT", "DAIUSDT", "SUIUSDT", "TONUSDT"
     ]
 
-    intervals = {"1h": 30, "4h": 60, "1d": 180}
+    intervals = {"4h": 60, "1d": 180}
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
