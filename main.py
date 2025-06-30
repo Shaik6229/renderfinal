@@ -305,6 +305,15 @@ def analyze(symbol, interval, tsl_percent):
     try:
         # Indicators
         rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+def analyze(symbol, interval, tsl_percent):
+    df = fetch_ohlcv(symbol, interval)
+
+    if df.empty or len(df) < 220:  # BB(200) + margin for rolling window
+        return None
+
+    try:
+        # Indicators
+        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
 
         macd_calc = MACD(close=df['close'])
         macd_line = macd_calc.macd().iloc[-1]
@@ -328,15 +337,14 @@ def analyze(symbol, interval, tsl_percent):
         vol_spike = volume_spike(df, symbol)
         divergence = rsi_divergence(df)
 
-        # Entry sub-conditions (for confidence scoring)
         entry_conditions = {
-            'price_below_bb': price < bb_lower,
+            'price_below_bb': price <= bb_lower,
             'rsi_oversold': rsi < 30,
             'stoch_oversold': stoch_k < 20 and stoch_d < 20,
-            'macd_bullish': macd_bullish,
+            'macd_bullish': macd_bullish
         }
 
-        # ✅ Confidence scoring (max = 135 with MACD)
+        # ✅ Confidence scoring (max = 135)
         confidence = 0
         confidence += 25 if htf_trend else 0
         confidence += 20 if trend else 0
@@ -350,10 +358,10 @@ def analyze(symbol, interval, tsl_percent):
 
         normalized_confidence = round((confidence / 135) * 100, 2)
 
-        # ✅ Entry triggers only if confidence is high enough
+        # ✅ Alert condition: only confidence threshold
         entry = normalized_confidence >= 60
 
-        # TP logic (MACD bearish included)
+        # TP logic
         macd_bearish = macd_line < macd_signal
         tp = (
             price >= bb_upper and
