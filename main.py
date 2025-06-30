@@ -306,36 +306,33 @@ def analyze(symbol, interval, tsl_percent):
         # Indicators
         rsi = RSIIndicator(df['close']).rsi().iloc[-1]
 def analyze(symbol, interval, tsl_percent):
-    df = fetch_ohlcv(symbol, interval)
-
-    if df.empty or len(df) < 220:  # BB(200) + margin for rolling window
-        return None
-
+def analyze(symbol, interval, tsl_percent):
     try:
-        # Indicators
-        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+        df = get_ohlcv(symbol, interval)
+        if df is None or df.empty:
+            return None
 
-        macd_calc = MACD(close=df['close'])
-        macd_line = macd_calc.macd().iloc[-1]
-        macd_signal = macd_calc.macd_signal().iloc[-1]
-        macd_hist = macd_calc.macd_diff().iloc[-1]
-        macd_bullish = macd_line > macd_signal
-
-        stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
+        price = df['close'].iloc[-1]
+        rsi = RSIIndicator(df['close'], window=14).rsi().iloc[-1]
+        stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14, smooth_window=3)
         stoch_k = stoch.stoch().iloc[-1]
         stoch_d = stoch.stoch_signal().iloc[-1]
 
-        bb = BollingerBands(df['close'], window=200, window_dev=2)
+        bb = BollingerBands(df['close'], window=20, window_dev=2)
         bb_lower = bb.bollinger_lband().iloc[-1]
         bb_upper = bb.bollinger_hband().iloc[-1]
-        price = df['close'].iloc[-1]
 
-        # Additional logic
+        macd_ind = MACD(df['close'], window_slow=26, window_fast=12, window_sign=9)
+        macd_line = macd_ind.macd().iloc[-1]
+        macd_signal = macd_ind.macd_signal().iloc[-1]
+        macd_hist = macd_ind.macd_diff().iloc[-1]
+        macd_bullish = macd_hist > 0 and macd_hist > macd_ind.macd_diff().iloc[-2]
+
+        vol_spike = is_volume_spike(df)
         trend = check_trend(symbol, interval)
-        htf_trend = check_trend(symbol, '1d') if interval in ["1h", "4h"] else True
+        htf_trend = check_trend(symbol, '1d') if interval in ['1h', '4h'] else True
         suppressed = is_suppressed(df)
-        vol_spike = volume_spike(df, symbol)
-        divergence = rsi_divergence(df)
+        divergence = detect_rsi_divergence(df)
 
         entry_conditions = {
             'price_below_bb': price <= bb_lower,
@@ -358,10 +355,10 @@ def analyze(symbol, interval, tsl_percent):
 
         normalized_confidence = round((confidence / 135) * 100, 2)
 
-        # ✅ Alert condition: only confidence threshold
+        # ✅ Entry condition based on confidence
         entry = normalized_confidence >= 60
 
-        # TP logic
+        # ✅ TP logic
         macd_bearish = macd_line < macd_signal
         tp = (
             price >= bb_upper and
