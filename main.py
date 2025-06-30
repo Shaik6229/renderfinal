@@ -296,6 +296,47 @@ def analyze(symbol, interval, tsl_percent):
         initial_sl = df['low'].iloc[-5:].min()
 
         # ✅ Confidence scoring (max = 135 with MACD)
+def analyze(symbol, interval, tsl_percent):
+    df = fetch_ohlcv(symbol, interval)
+
+    if df.empty or len(df) < 220:  # BB(200) + margin for rolling window
+        return None
+
+    try:
+        # Indicators
+        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+
+        macd_calc = MACD(close=df['close'])
+        macd_line = macd_calc.macd().iloc[-1]
+        macd_signal = macd_calc.macd_signal().iloc[-1]
+        macd_hist = macd_calc.macd_diff().iloc[-1]
+        macd_bullish = macd_line > macd_signal
+
+        stoch = StochasticOscillator(df['high'], df['low'], df['close'], window=14)
+        stoch_k = stoch.stoch().iloc[-1]
+        stoch_d = stoch.stoch_signal().iloc[-1]
+
+        bb = BollingerBands(df['close'], window=200, window_dev=2)
+        bb_lower = bb.bollinger_lband().iloc[-1]
+        bb_upper = bb.bollinger_hband().iloc[-1]
+        price = df['close'].iloc[-1]
+
+        # Additional logic
+        trend = check_trend(symbol, interval)
+        htf_trend = check_trend(symbol, '1d') if interval in ["1h", "4h"] else True
+        suppressed = is_suppressed(df)
+        vol_spike = volume_spike(df, symbol)
+        divergence = rsi_divergence(df)
+
+        # Entry sub-conditions (for confidence scoring)
+        entry_conditions = {
+            'price_below_bb': price < bb_lower,
+            'rsi_oversold': rsi < 30,
+            'stoch_oversold': stoch_k < 20 and stoch_d < 20,
+            'macd_bullish': macd_bullish,
+        }
+
+        # ✅ Confidence scoring (max = 135 with MACD)
         confidence = 0
         confidence += 25 if htf_trend else 0
         confidence += 20 if trend else 0
@@ -308,6 +349,21 @@ def analyze(symbol, interval, tsl_percent):
         confidence += 15 if entry_conditions['macd_bullish'] else 0
 
         normalized_confidence = round((confidence / 135) * 100, 2)
+
+        # ✅ Entry triggers only if confidence is high enough
+        entry = normalized_confidence >= 60
+
+        # TP logic (MACD bearish included)
+        macd_bearish = macd_line < macd_signal
+        tp = (
+            price >= bb_upper and
+            (rsi > 70 or (stoch_k > 80 and stoch_d > 80)) and
+            macd_bearish
+        )
+
+        highest = df['high'].max()
+        tsl_level = highest * (1 - tsl_percent)
+        initial_sl = df['low'].iloc[-5:].min()
 
         return {
             'symbol': symbol,
