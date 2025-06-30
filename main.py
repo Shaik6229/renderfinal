@@ -254,17 +254,22 @@ async def scan_symbols():
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
     for symbol in pairs:
-        for tf, cooldown in intervals.items():
-            data = analyze(symbol, tf, 0.25)
-            if not data: continue
+    for tf, cooldown in intervals.items():
+        data = analyze(symbol, tf, 0.25)
+        if not data:
+            continue
 
-            if data['entry'] and alert_cooldown_passed(symbol, tf, "entry", cooldown):
-                await send_telegram_message(bot_token, chat_id, entry_msg(data))
-                logging.info(f"✅ Entry alert: {symbol} {tf} ({data['confidence']}%)")
+        # 🔍 Add this log to check confidence and entry condition
+        logging.info(f"⏳ Checked {symbol} {tf} — Confidence: {data['confidence']}% — Entry: {data['entry']} — TP: {data['tp']}")
 
-            if data['tp'] and alert_cooldown_passed(symbol, tf, "tp", cooldown):
-                await send_telegram_message(bot_token, chat_id, tp_msg(data))
-                logging.info(f"🎯 TP alert: {symbol} {tf}")
+        if data['entry'] and alert_cooldown_passed(symbol, tf, "entry", cooldown):
+            await send_telegram_message(bot_token, chat_id, entry_msg(data))
+            logging.info(f"✅ Entry alert: {symbol} {tf} ({data['confidence']}%)")
+
+        if data['tp'] and alert_cooldown_passed(symbol, tf, "tp", cooldown):
+            await send_telegram_message(bot_token, chat_id, tp_msg(data))
+            logging.info(f"🎯 TP alert: {symbol} {tf}")
+
 
 async def main_loop():
     while True:
