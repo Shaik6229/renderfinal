@@ -330,7 +330,10 @@ async def main_loop():
         await scan_symbols()
         await asyncio.sleep(1800)
 
-def run(): app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+def run():
+    port = int(os.environ['PORT'])
+    app.run(host='0.0.0.0', port=port)
+
 
 if __name__ == "__main__":
     import nest_asyncio
