@@ -133,6 +133,15 @@ def alert_cooldown_passed(symbol, interval, kind, cooldown_minutes):
         return True
     return False
 
+def confidence_tag(conf):
+    if conf >= 85:
+        return "✅ *Strong setup*"
+    elif conf >= 70:
+        return "⚠️ *Decent setup*"
+    elif conf >= 50:
+        return "🧪 *Weak setup*"
+    return "❌ *Low confidence*"
+
 # === Alert Message Builders ===
 def entry_msg(data):
     ist_time = get_time()
