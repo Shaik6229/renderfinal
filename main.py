@@ -171,15 +171,7 @@ def tp_msg(data):
     ist_time = get_time()
     utc_time = datetime.utcnow().strftime("%d-%b-%Y %H:%M")
 
-    # Confidence scoring (TP)
-    confidence = 0
-    confidence += 25 if data['rsi'] > 70 else 0
-    confidence += 25 if data['stoch_k'] > 80 and data['stoch_d'] > 80 else 0
-    confidence += 25 if data['price'] >= data['bb_upper'] else 0
-    confidence += 25 if not data['suppressed'] else 0
-    confidence += 25 if data['macd_line'] < data['macd_signal'] else 0
-    confidence = min(confidence, 100)
-
+    confidence = data['tp_conf']
     tsl_pct = round((1 - data['tsl_level'] / data['highest']) * 100, 2)
 
     return f"""
@@ -199,6 +191,7 @@ def tp_msg(data):
 🕒 UTC: {utc_time}  
 🕒 IST: {ist_time}
 """.strip()
+
 
 # === Analysis Logic ===
 def analyze(symbol, interval, tsl_percent):
@@ -247,19 +240,44 @@ def analyze(symbol, interval, tsl_percent):
         confidence += 15 if macd_bullish else 0
         normalized_conf = round((confidence / 135) * 100, 2)
 
-        tp = price >= bb_upper and (rsi > 70 or (stoch_k > 80 and stoch_d > 80)) and macd_line < macd_signal
+       # --- TP Confidence Logic ---
+tp_confidence = 0
+tp_confidence += 25 if rsi > 70 else 0
+tp_confidence += 25 if stoch_k > 80 and stoch_d > 80 else 0
+tp_confidence += 25 if price >= bb_upper else 0
+tp_confidence += 15 if macd_line < macd_signal else 0
+tp_confidence += 10 if not volume_spike_ else 0  # Weakening volume
+tp_conf = round((tp_confidence / 100) * 100, 2)
 
-        return {
-            'symbol': symbol, 'interval': interval, 'confidence': normalized_conf,
-            'rsi': round(rsi, 2), 'stoch_k': round(stoch_k, 2), 'stoch_d': round(stoch_d, 2),
-            'price': round(price, 4), 'bb_upper': round(bb_upper, 4), 'bb_lower': round(bb_lower, 4),
-            'trend': trend, 'htf_trend': htf_trend, 'suppressed': suppressed,
-            'volume_spike': volume_spike_, 'divergence': divergence, 'initial_sl': round(df['low'].iloc[-5:].min(), 4),
-            'highest': round(df['high'].max(), 4), 'tsl_level': round(df['high'].max() * (1 - tsl_percent), 4),
-            'macd_line': round(macd_line, 4), 'macd_signal': round(macd_signal, 4),
-            'macd_hist': round(macd_hist, 4), 'macd_bullish': macd_bullish,
-            'entry': normalized_conf >= 50, 'tp': tp
-        }
+tp = tp_conf >= 60
+
+return {
+    'symbol': symbol,
+    'interval': interval,
+    'confidence': normalized_conf,
+    'rsi': round(rsi, 2),
+    'stoch_k': round(stoch_k, 2),
+    'stoch_d': round(stoch_d, 2),
+    'price': round(price, 4),
+    'bb_upper': round(bb_upper, 4),
+    'bb_lower': round(bb_lower, 4),
+    'trend': trend,
+    'htf_trend': htf_trend,
+    'suppressed': suppressed,
+    'volume_spike': volume_spike_,
+    'divergence': divergence,
+    'initial_sl': round(df['low'].iloc[-5:].min(), 4),
+    'highest': round(df['high'].max(), 4),
+    'tsl_level': round(df['high'].max() * (1 - tsl_percent), 4),
+    'macd_line': round(macd_line, 4),
+    'macd_signal': round(macd_signal, 4),
+    'macd_hist': round(macd_hist, 4),
+    'macd_bullish': macd_bullish,
+    'entry': normalized_conf >= 50,
+    'tp': tp,
+    'tp_conf': tp_conf
+}
+
     except Exception as e:
         logging.error(f"Analysis error {symbol} {interval}: {e}")
         return None
