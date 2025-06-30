@@ -328,22 +328,20 @@ def analyze(symbol, interval, tsl_percent):
 
 def analyze(symbol, interval, tsl_percent):
     try:
-        df = get_ohlcv(symbol, interval)
-        if df is None or df.empty:
-            return None
-
-        price = df['close'].iloc[-1]
-rsi = ta.RSI(df['close'], timeperiod=14).iloc[-1]
-stoch_k, stoch_d = get_stochastic(df)
-bb_upper, bb_lower = get_bollinger_bands(df)
-macd_line, macd_signal, macd_hist = get_macd(df)
-df['macd_hist'] = macd_hist  # ✅ Add this line
-trend = is_trending(df)
-htf_trend = check_htf_trend(symbol)
-suppressed = is_suppressed(df)
-vol_spike = is_volume_spike(df)
-divergence = detect_rsi_divergence(df)
-macd_bullish = macd_hist > 0 and macd_hist > df['macd_hist'].iloc[-2]
+    price = df['close'].iloc[-1]
+    rsi = ta.RSI(df['close'], timeperiod=14).iloc[-1]
+    stoch_k, stoch_d = get_stochastic(df)
+    bb_upper, bb_lower = get_bollinger_bands(df)
+    macd_line, macd_signal, macd_hist = get_macd(df)
+    trend = is_trending(df)
+    htf_trend = check_htf_trend(symbol)
+    suppressed = is_suppressed(df)
+    vol_spike = is_volume_spike(df)
+    divergence = detect_rsi_divergence(df)
+    macd_bullish = macd_hist > 0 and macd_hist > df['macd_hist'].iloc[-2]
+except Exception as e:
+    logging.error(f"Error analyzing {symbol} {interval}: {e}")
+    return
 
         entry_conditions = {
             'price_below_bb': price <= bb_lower,
