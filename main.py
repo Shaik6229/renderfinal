@@ -205,21 +205,30 @@ def analyze(symbol, interval, tsl_percent):
     df = fetch_ohlcv(symbol, interval)
     if df.empty or len(df) < 220:
         return None
-        
+
     try:
-    rsi = RSIIndicator(df['close']).rsi().iloc[-1]
-    macd = MACD(df['close'], window_slow=200, window_fast=100, window_sign=50)
-    macd_line = macd.macd().iloc[-1]
-    macd_signal = macd.macd_signal().iloc[-1]
-    macd_hist = macd.macd_diff().iloc[-1]
-    macd_bullish = macd_line > macd_signal
-    stoch = StochasticOscillator(df['high'], df['low'], df['close'])
-    stoch_k = stoch.stoch().iloc[-1]
-    stoch_d = stoch.stoch_signal().iloc[-1]
-    bb = BollingerBands(df['close'], window=200, window_dev=2)
-    bb_upper = bb.bollinger_hband().iloc[-1]
-    bb_lower = bb.bollinger_lband().iloc[-1]
-    price = df['close'].iloc[-1]
+        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+
+        macd = MACD(
+            df['close'],
+            window_slow=200,
+            window_fast=100,
+            window_sign=50
+        )
+        macd_line = macd.macd().iloc[-1]
+        macd_signal = macd.macd_signal().iloc[-1]
+        macd_hist = macd.macd_diff().iloc[-1]
+        macd_bullish = macd_line > macd_signal
+
+        stoch = StochasticOscillator(df['high'], df['low'], df['close'])
+        stoch_k = stoch.stoch().iloc[-1]
+        stoch_d = stoch.stoch_signal().iloc[-1]
+
+        bb = BollingerBands(df['close'], window=200, window_dev=2)
+        bb_upper = bb.bollinger_hband().iloc[-1]
+        bb_lower = bb.bollinger_lband().iloc[-1]
+        price = df['close'].iloc[-1]
+
         trend = check_trend(symbol, interval)
         htf_trend = check_trend(symbol, "1d") if interval in ["1h", "4h"] else True
         suppressed = is_suppressed(df)
