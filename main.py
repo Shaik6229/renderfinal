@@ -125,6 +125,25 @@ def test_alert():
 # === Globals ===
 alert_tracker = {}
 
+
+symbol_volumes = {}
+
+def fetch_24h_volumes():
+    global symbol_volumes
+    try:
+        url = "https://api.binance.com/api/v3/ticker/24hr"
+        response = requests.get(url)
+        data = response.json()
+        # Save only relevant symbol:volume data
+        symbol_volumes = {
+            item["symbol"]: float(item["quoteVolume"])
+            for item in data
+            if item["symbol"].endswith("USDT")
+        }
+    except Exception as e:
+        logging.error(f"⚠️ Volume fetch error: {e}")
+        symbol_volumes = {}
+        
 # === Utility Functions ===
 def fetch_ohlcv(symbol, interval, limit=500):
     url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
@@ -180,12 +199,27 @@ def check_trend(symbol, interval):
     if df.empty or len(df) < 200: return False
     return df['close'].iloc[-1] > fetch_ema(df)
 
+
 def volume_spike(df, symbol, interval):
     window = TIMEFRAME_CONFIG[interval]["volume_window"]
     recent_vol = df['volume'].iloc[-window:]
-    mult = 1.2 if symbol in ['CVCUSDT','CTSIUSDT'] else 1.5
-    return recent_vol.iloc[-1] > recent_vol.mean() + mult * recent_vol.std()
 
+    # Default multiplier
+    mult = 1.5
+
+    # Use dynamic multiplier based on overall 24h quote volume
+    global symbol_volumes
+    vol_24h = symbol_volumes.get(symbol, None)
+
+    if vol_24h is not None:
+        if vol_24h < 5_000_000:
+            mult = 1.2  # Low volume coin
+        elif vol_24h > 50_000_000:
+            mult = 1.8  # High volume coin
+        else:
+            mult = 1.5  # Medium volume coin
+
+    return recent_vol.iloc[-1] > recent_vol.mean() + mult * recent_vol.std()
 
 def rsi_divergence(df):
     try:
@@ -416,7 +450,7 @@ def analyze(symbol, interval, tsl_percent):
         confidence += 15 if macd_bullish else 0
         confidence += 10 if not suppressed else 0
         confidence -= 10 if rsi_neutral else 0
-        confidence -= 10 if tight_range else 
+        confidence -= 10 if tight_range else 0
 
         max_score = get_max_confidence_score(interval)
         normalized_conf = round((confidence / max_score) * 100, 2)
@@ -524,8 +558,18 @@ async def scan_symbols():
 
 
 async def main_loop():
+    loop_counter = 0
+    fetch_24h_volumes()  # Initial fetch
+
     while True:
         await scan_symbols()
+
+        loop_counter += 1
+        if loop_counter >= 8:  # 8 * 30min = 4 hours
+            logging.info("🔄 Refreshing 24h volume data from Binance...")
+            fetch_24h_volumes()
+            loop_counter = 0
+
         await asyncio.sleep(1800)
 
 def run():
