@@ -9,7 +9,7 @@ from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
-from ta.trend import EMAIndicator, MACD
+from ta.trend import EMAIndicator, MACD, EMAIndicator
 from threading import Thread
 
 # === Logging ===
@@ -160,6 +160,12 @@ def entry_msg(data):
 • {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Bullish' if data['htf_trend'] else 'Bearish'}
 • {'✅' if not data['suppressed'] else '❌'} Suppression: {'No' if not data['suppressed'] else 'Yes'}
 • {'✅' if data['divergence'] else '❌'} Divergence: {'Bullish RSI Divergence' if data['divergence'] else 'None'}
+• {'✅' if data['macd_hist_positive'] else '❌'} MACD Momentum: {'Turning positive' if data['macd_hist_positive'] else 'Flat or negative'}
+• {'✅' if data['stoch_crossover'] else '❌'} Stochastic Crossover: {'Bullish crossover' if data['stoch_crossover'] else 'No crossover'}
+• {'✅' if data['ema_50'] and data['price'] > data['ema_50'] else '❌'} EMA 50: {'Price above EMA 50' if data['price'] > data['ema_50'] else 'Below EMA 50'}
+• {'✅' if not data['rsi_neutral'] else '❌'} RSI Zone: {'Strong zone' if not data['rsi_neutral'] else 'Neutral RSI (40–60)'}
+• {'✅' if not data['tight_range'] else '❌'} Range: {'Clear breakout potential' if not data['tight_range'] else 'Choppy sideways range'}
+
 
 🎯 Confidence Score: {data['confidence']}% — {confidence_tag(data['confidence'])}
 🛡️ Suggested TSL: {tsl_pct}%
@@ -186,6 +192,15 @@ def tp_msg(data):
 • {'❌' if data['volume_spike'] else '✅'} Volume Weakening
 • {'✅' if data['price'] >= data['bb_upper'] else '❌'} Resistance Zone (Upper BB hit)
 • {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Still Bullish (be cautious)' if data['htf_trend'] else 'Bearish'}
+• {'✅' if data['rsi'] > 70 else '❌'} RSI Overbought (RSI = {data['rsi']})
+• {'✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'} Stochastic Overbought (K: {data['stoch_k']}, D: {data['stoch_d']})
+• {'✅' if data['stoch_bear_crossover'] else '❌'} Stochastic Crossover: {'Bearish crossover' if data['stoch_bear_crossover'] else 'No crossover'}
+• {'✅' if data['bearish_rsi_div'] else '❌'} RSI Divergence: {'Bearish RSI divergence' if data['bearish_rsi_div'] else 'None'}
+• {'✅' if data['rejection_wick'] else '❌'} Rejection Wick: {'Long upper shadow detected' if data['rejection_wick'] else 'None'}
+• {'❌' if data['volume_spike'] else '✅'} Volume Weakening
+• {'✅' if data['price'] >= data['bb_upper'] else '❌'} Resistance Zone (Upper BB hit)
+• {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Still Bullish (be cautious)' if data['htf_trend'] else 'Bearish'}
+
 
 🎯 Confidence Score: {confidence}% — {confidence_tag(confidence)}
 🛡️ Suggested TSL: {tsl_pct}%
@@ -217,6 +232,9 @@ def analyze(symbol, interval, tsl_percent):
         stoch = StochasticOscillator(df['high'], df['low'], df['close'])
         stoch_k = stoch.stoch().iloc[-1]
         stoch_d = stoch.stoch_signal().iloc[-1]
+        # Bearish stochastic crossover (used for TP logic)
+        stoch_bear_crossover = stoch.stoch().iloc[-2] > stoch.stoch_signal().iloc[-2] and stoch.stoch().iloc[-1] < stoch.stoch_signal().iloc[-1]
+
 
         bb = BollingerBands(df['close'], window=200, window_dev=2)
         bb_upper = bb.bollinger_hband().iloc[-1]
@@ -227,30 +245,81 @@ def analyze(symbol, interval, tsl_percent):
         htf_trend = check_trend(symbol, "1d") if interval in ["1h", "4h"] else check_trend(symbol, "1w")
         suppressed = is_suppressed(df)
         volume_spike_ = volume_spike(df, symbol)
-        divergence = rsi_divergence(df)
+                divergence = rsi_divergence(df)
 
+        # --- New Entry Enhancements ---
+        ema_50 = EMAIndicator(df['close'], window=50).ema_indicator().iloc[-1]
+
+        # Stochastic crossover confirmation
+        stoch_crossover = stoch.stoch().iloc[-2] < stoch.stoch_signal().iloc[-2] and stoch.stoch().iloc[-1] > stoch.stoch_signal().iloc[-1]
+
+        # MACD histogram shift
+        macd_hist_positive = macd.macd_diff().iloc[-2] < 0 and macd.macd_diff().iloc[-1] > 0
+
+        # Tight range filter (chop zone)
+        tight_range = (df['close'].iloc[-10:].max() - df['close'].iloc[-10:].min()) / df['close'].iloc[-1] < 0.02
+
+        # RSI penalty zone
+        rsi_neutral = 40 < rsi < 60
+                # --- Bearish RSI Divergence Detection ---
+        try:
+            recent_rsi = RSIIndicator(df['close']).rsi().iloc[-15:]
+            recent_highs = df['high'].iloc[-15:]
+
+            idx_highs = recent_highs.nlargest(2).index.tolist()
+            bearish_rsi_div = False
+            if len(idx_highs) >= 2:
+                h1, h2 = idx_highs
+                if recent_highs[h1] < recent_highs[h2] and recent_rsi[h1] > recent_rsi[h2]:
+                    bearish_rsi_div = True
+        except Exception as e:
+            logging.warning(f"{symbol} {interval} - Bearish RSI div error: {e}")
+            bearish_rsi_div = False
+
+        # --- Rejection Wick Detection ---
+        rejection_wick = (df['high'].iloc[-1] - df['close'].iloc[-1]) > 2 * abs(df['close'].iloc[-1] - df['open'].iloc[-1])
+
+
+
+
+        # --- Updated Confidence Scoring ---
         confidence = 0
         confidence += 25 if htf_trend else 0
-        confidence += 20 if trend else 0
-        confidence += 20 if volume_spike_ else 0
+        confidence += 15 if trend else 0
+        confidence += 15 if volume_spike_ else 0
         confidence += 10 if not suppressed else 0
         confidence += 15 if divergence else 0
         confidence += 10 if price <= bb_lower else 0
         confidence += 10 if rsi < 30 else 0
         confidence += 10 if stoch_k < 20 and stoch_d < 20 else 0
         confidence += 15 if macd_bullish else 0
-        normalized_conf = round((confidence / 135) * 100, 2)
+        confidence += 15 if macd_hist_positive else 0
+        confidence += 10 if stoch_crossover else 0
+        confidence += 10 if price > ema_50 else 0
+
+        # ❌ Negative scoring
+        confidence -= 10 if rsi_neutral else 0
+        confidence -= 10 if tight_range else 0
+
+        normalized_conf = round((confidence / 165) * 100, 2)
+
 
         # --- TP Confidence Logic ---
         tp_confidence = 0
+
+        # ✅ Positive scoring
         tp_confidence += 25 if rsi > 70 else 0
-        tp_confidence += 25 if stoch_k > 80 and stoch_d > 80 else 0
-        tp_confidence += 25 if price >= bb_upper else 0
+        tp_confidence += 20 if stoch_k > 80 and stoch_d > 80 else 0
+        tp_confidence += 20 if price >= bb_upper else 0
         tp_confidence += 15 if macd_line < macd_signal else 0
         tp_confidence += 10 if not volume_spike_ else 0  # Weakening volume
-        tp_conf = round((tp_confidence / 100) * 100, 2)
+        tp_confidence += 15 if bearish_rsi_div else 0
+        tp_confidence += 10 if stoch_bear_crossover else 0
+        tp_confidence += 10 if rejection_wick else 0
 
+        tp_conf = round((tp_confidence / 125) * 100, 2)
         tp = tp_conf >= 60
+
 
         return {
             'symbol': symbol,
@@ -276,7 +345,11 @@ def analyze(symbol, interval, tsl_percent):
             'macd_bullish': macd_bullish,
             'entry': normalized_conf >= 50,
             'tp': tp,
-            'tp_conf': tp_conf
+            'tp_conf': tp_conf,
+            'bearish_rsi_div': bearish_rsi_div,
+            'stoch_bear_crossover': stoch_bear_crossover,
+            'rejection_wick': rejection_wick,
+
         }
 
     except Exception as e:
