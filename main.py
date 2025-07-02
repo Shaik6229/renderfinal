@@ -416,12 +416,7 @@ def analyze(symbol, interval, tsl_percent):
         confidence += 15 if macd_bullish else 0
         confidence += 10 if not suppressed else 0
         confidence -= 10 if rsi_neutral else 0
-        confidence -= 10 if tight_range else 0
-
-
-        # ❌ Negative scoring
-        confidence -= 10 if rsi_neutral else 0
-        confidence -= 10 if tight_range else 0
+        confidence -= 10 if tight_range else 
 
         max_score = get_max_confidence_score(interval)
         normalized_conf = round((confidence / max_score) * 100, 2)
