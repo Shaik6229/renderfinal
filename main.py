@@ -32,9 +32,9 @@ TIMEFRAME_CONFIG = {
             "stoch_cross": 10,
             "rejection_wick": 10
         },
-        "entry_threshold": 50,# ✅ Add this
-        "tp_threshold": 55,
-        "tsl": 0.21
+        "entry_threshold": 65,  # 🔒 Stronger filters for fewer but better 30m signals
+        "tp_threshold": 60,
+        "tsl": 0.08             # 🔄 Tight TSL for scalps
     },
     "4h": {
         "htf": "1d",
@@ -54,9 +54,9 @@ TIMEFRAME_CONFIG = {
             "stoch_cross": 10,
             "rejection_wick": 5
         },
-        "entry_threshold": 50,   # ✅ Add this
-        "tp_threshold": 60,
-        "tsl": 0.25
+        "entry_threshold": 70,  # 🚀 Wait for more confluence on 4H
+        "tp_threshold": 65,
+        "tsl": 0.18             # 🧘‍♂️ Swing-safe TSL
     },
     "1d": {
         "htf": "1w",
@@ -76,11 +76,12 @@ TIMEFRAME_CONFIG = {
             "stoch_cross": 10,
             "rejection_wick": 10
         },
-        "entry_threshold": 50,   # ✅ Add this
-        "tp_threshold": 65,
-        "tsl": 0.35
+        "entry_threshold": 75,  # 🧠 Highest quality trades only
+        "tp_threshold": 70,
+        "tsl": 0.30             # 🛡️ Strong trend safety net
     }
 }
+
 
 
 
