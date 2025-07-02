@@ -256,7 +256,7 @@ def analyze(symbol, interval, tsl_percent):
         htf_trend = check_trend(symbol, "1d") if interval in ["1h", "4h"] else check_trend(symbol, "1w")
         suppressed = is_suppressed(df)
         volume_spike_ = volume_spike(df, symbol)
-                divergence = rsi_divergence(df)
+        divergence = rsi_divergence(df)
 
         # --- New Entry Enhancements ---
         ema_50 = EMAIndicator(df['close'], window=50).ema_indicator().iloc[-1]
