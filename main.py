@@ -12,6 +12,75 @@ from ta.volatility import BollingerBands
 from ta.trend import EMAIndicator, MACD, EMAIndicator
 from threading import Thread
 
+# === Timeframe-Specific Config ===
+TIMEFRAME_CONFIG = {
+    "30m": {
+        "htf": "4h",
+        "volume_window": 12,
+        "cooldown": 30,
+        "confidence_weights": {
+            "htf_trend": 15, "trend": 10, "volume": 15, "macd_hist": 20,
+            "stoch_crossover": 15, "ema50": 10, "divergence": 10
+        },
+        "tp_weights": {
+            "rsi_overbought": 20,
+            "stoch_overbought": 20,
+            "bb_hit": 20,
+            "macd_cross": 15,
+            "vol_weak": 10,
+            "rsi_div": 10,
+            "stoch_cross": 10,
+            "rejection_wick": 10
+        },
+        "tp_threshold": 55,
+        "tsl": 0.21
+    },
+    "4h": {
+        "htf": "1d",
+        "volume_window": 20,
+        "cooldown": 60,
+        "confidence_weights": {
+            "htf_trend": 25, "trend": 15, "volume": 15, "macd_hist": 15,
+            "stoch_crossover": 10, "ema50": 10, "divergence": 15
+        },
+        "tp_weights": {
+            "rsi_overbought": 25,
+            "stoch_overbought": 20,
+            "bb_hit": 15,
+            "macd_cross": 15,
+            "vol_weak": 10,
+            "rsi_div": 15,
+            "stoch_cross": 10,
+            "rejection_wick": 5
+        },
+        "tp_threshold": 60,
+        "tsl": 0.25
+    },
+    "1d": {
+        "htf": "1w",
+        "volume_window": 30,
+        "cooldown": 180,
+        "confidence_weights": {
+            "htf_trend": 30, "trend": 20, "volume": 10, "macd_hist": 15,
+            "stoch_crossover": 5, "ema50": 15, "divergence": 20
+        },
+        "tp_weights": {
+            "rsi_overbought": 30,
+            "stoch_overbought": 15,
+            "bb_hit": 20,
+            "macd_cross": 10,
+            "vol_weak": 5,
+            "rsi_div": 20,
+            "stoch_cross": 10,
+            "rejection_wick": 10
+        },
+        "tp_threshold": 65,
+        "tsl": 0.35
+    }
+}
+
+
+
 # === Logging ===
 logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s — %(message)s")
 
@@ -85,10 +154,12 @@ def check_trend(symbol, interval):
     if df.empty or len(df) < 200: return False
     return df['close'].iloc[-1] > fetch_ema(df)
 
-def volume_spike(df, symbol):
-    recent_vol = df['volume'].iloc[-20:]
+def volume_spike(df, symbol, interval):
+    window = TIMEFRAME_CONFIG[interval]["volume_window"]
+    recent_vol = df['volume'].iloc[-window:]
     mult = 1.2 if symbol in ['CVCUSDT','CTSIUSDT'] else 1.5
     return recent_vol.iloc[-1] > recent_vol.mean() + mult * recent_vol.std()
+
 
 def rsi_divergence(df):
     try:
@@ -217,6 +288,10 @@ def tp_msg(data):
 
 # === Analysis Logic ===
 def analyze(symbol, interval, tsl_percent):
+    config = TIMEFRAME_CONFIG[interval]
+    weights = config["confidence_weights"]
+    tsl_percent = config["tsl"]
+
     df = fetch_ohlcv(symbol, interval)
     if df.empty or len(df) < 220:
         return None
@@ -255,7 +330,7 @@ def analyze(symbol, interval, tsl_percent):
         trend = check_trend(symbol, interval)
         htf_trend = check_trend(symbol, "1d") if interval in ["1h", "4h"] else check_trend(symbol, "1w")
         suppressed = is_suppressed(df)
-        volume_spike_ = volume_spike(df, symbol)
+        volume_spike_ = volume_spike(df, symbol, interval)
         divergence = rsi_divergence(df)
 
         # --- New Entry Enhancements ---
@@ -295,18 +370,21 @@ def analyze(symbol, interval, tsl_percent):
 
         # --- Updated Confidence Scoring ---
         confidence = 0
-        confidence += 25 if htf_trend else 0
-        confidence += 15 if trend else 0
-        confidence += 15 if volume_spike_ else 0
-        confidence += 10 if not suppressed else 0
-        confidence += 15 if divergence else 0
+        confidence += weights.get("htf_trend", 0) if htf_trend else 0
+        confidence += weights.get("trend", 0) if trend else 0
+        confidence += weights.get("volume", 0) if volume_spike_ else 0
+        confidence += weights.get("macd_hist", 0) if macd_hist_positive else 0
+        confidence += weights.get("stoch_crossover", 0) if stoch_crossover else 0
+        confidence += weights.get("ema50", 0) if price > ema_50 else 0
+        confidence += weights.get("divergence", 0) if divergence else 0
         confidence += 10 if price <= bb_lower else 0
         confidence += 10 if rsi < rsi_dynamic_threshold else 0
         confidence += 10 if stoch_k < 20 and stoch_d < 20 else 0
         confidence += 15 if macd_bullish else 0
-        confidence += 15 if macd_hist_positive else 0
-        confidence += 10 if stoch_crossover else 0
-        confidence += 10 if price > ema_50 else 0
+        confidence += 10 if not suppressed else 0
+        confidence -= 10 if rsi_neutral else 0
+        confidence -= 10 if tight_range else 0
+
 
         # ❌ Negative scoring
         confidence -= 10 if rsi_neutral else 0
@@ -316,20 +394,22 @@ def analyze(symbol, interval, tsl_percent):
 
 
         # --- TP Confidence Logic ---
+        tp_weights = config["tp_weights"]
         tp_confidence = 0
 
-        # ✅ Positive scoring
-        tp_confidence += 25 if rsi > 70 else 0
-        tp_confidence += 20 if stoch_k > 80 and stoch_d > 80 else 0
-        tp_confidence += 20 if price >= bb_upper else 0
-        tp_confidence += 15 if macd_line < macd_signal else 0
-        tp_confidence += 10 if not volume_spike_ else 0  # Weakening volume
-        tp_confidence += 15 if bearish_rsi_div else 0
-        tp_confidence += 10 if stoch_bear_crossover else 0
-        tp_confidence += 10 if rejection_wick else 0
+        tp_confidence += tp_weights.get("rsi_overbought", 0) if rsi > 70 else 0
+        tp_confidence += tp_weights.get("stoch_overbought", 0) if stoch_k > 80 and stoch_d > 80 else 0
+        tp_confidence += tp_weights.get("bb_hit", 0) if price >= bb_upper else 0
+        tp_confidence += tp_weights.get("macd_cross", 0) if macd_line < macd_signal else 0
+        tp_confidence += tp_weights.get("vol_weak", 0) if not volume_spike_ else 0
+        tp_confidence += tp_weights.get("rsi_div", 0) if bearish_rsi_div else 0
+        tp_confidence += tp_weights.get("stoch_cross", 0) if stoch_bear_crossover else 0
+        tp_confidence += tp_weights.get("rejection_wick", 0) if rejection_wick else 0
+
 
         tp_conf = round((tp_confidence / 125) * 100, 2)
-        tp = tp_conf >= 60
+        tp = tp_conf >= config["tp_threshold"]
+
 
 
         return {
@@ -383,7 +463,12 @@ async def scan_symbols():
     ]
 
 
-    intervals = {"4h": 60, "1d": 180}
+    intervals = {
+    "30m": TIMEFRAME_CONFIG["30m"]["cooldown"],
+    "4h": TIMEFRAME_CONFIG["4h"]["cooldown"],
+    "1d": TIMEFRAME_CONFIG["1d"]["cooldown"]
+    }
+
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
