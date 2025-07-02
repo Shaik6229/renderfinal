@@ -32,6 +32,7 @@ TIMEFRAME_CONFIG = {
             "stoch_cross": 10,
             "rejection_wick": 10
         },
+        "entry_threshold": 50,# ✅ Add this
         "tp_threshold": 55,
         "tsl": 0.21
     },
@@ -53,6 +54,7 @@ TIMEFRAME_CONFIG = {
             "stoch_cross": 10,
             "rejection_wick": 5
         },
+        "entry_threshold": 50,   # ✅ Add this
         "tp_threshold": 60,
         "tsl": 0.25
     },
@@ -74,10 +76,12 @@ TIMEFRAME_CONFIG = {
             "stoch_cross": 10,
             "rejection_wick": 10
         },
+        "entry_threshold": 50,   # ✅ Add this
         "tp_threshold": 65,
         "tsl": 0.35
     }
 }
+
 
 
 
@@ -130,6 +134,24 @@ def fetch_ohlcv(symbol, interval, limit=500):
     except Exception as e:
         logging.error(f"[{symbol} - {interval}] Failed OHLCV fetch: {e}")
         return pd.DataFrame()
+
+def get_max_confidence_score(interval):
+    weights = TIMEFRAME_CONFIG[interval]["confidence_weights"]
+    # These are static bonuses added in scoring logic — add them too
+    static_bonuses = {
+        "bb_lower": 10,
+        "rsi_dynamic": 10,
+        "stoch_oversold": 10,
+        "macd_bullish": 15,
+        "no_suppression": 10
+    }
+    penalties = {
+        "rsi_neutral": -10,
+        "tight_range": -10
+    }
+    total = sum(weights.values()) + sum(static_bonuses.values()) + abs(sum(penalties.values()))
+    return total
+
 
 def is_suppressed(df):
     if df.empty or len(df) < 220: return True
@@ -392,7 +414,9 @@ def analyze(symbol, interval, tsl_percent):
         confidence -= 10 if rsi_neutral else 0
         confidence -= 10 if tight_range else 0
 
-        normalized_conf = round((confidence / 165) * 100, 2)
+        max_score = get_max_confidence_score(interval)
+        normalized_conf = round((confidence / max_score) * 100, 2)
+
 
 
         # --- TP Confidence Logic ---
@@ -436,7 +460,7 @@ def analyze(symbol, interval, tsl_percent):
             'macd_signal': round(macd_signal, 4),
             'macd_hist': round(macd_hist, 4),
             'macd_bullish': macd_bullish,
-            'entry': normalized_conf >= 50,
+            'entry': normalized_conf >= config.get("entry_threshold", 50),
             'tp': tp,
             'tp_conf': tp_conf,
             'bearish_rsi_div': bearish_rsi_div,
