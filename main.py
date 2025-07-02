@@ -328,7 +328,7 @@ def analyze(symbol, interval, tsl_percent):
         price = df['close'].iloc[-1]
 
         trend = check_trend(symbol, interval)
-        htf_trend = check_trend(symbol, "1d") if interval in ["1h", "4h"] else check_trend(symbol, "1w")
+        htf_trend = check_trend(symbol, config["htf"])
         suppressed = is_suppressed(df)
         volume_spike_ = volume_spike(df, symbol, interval)
         divergence = rsi_divergence(df)
