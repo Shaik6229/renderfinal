@@ -224,7 +224,8 @@ def entry_msg(data):
     ist_time = get_time()
     utc_time = datetime.utcnow().strftime("%d-%b-%Y %H:%M")
     tsl_pct = round((1 - data['tsl_level'] / data['highest']) * 100, 2)
-    htf_label = "1D" if data['interval'] in ["1h", "4h"] else "1W"
+    htf_label = TIMEFRAME_CONFIG[data['interval']]['htf'].upper()
+
 
     return f"""
 🚀 ENTRY SIGNAL — {data['symbol']} @ ${data['price']} ({data['interval']})
@@ -257,7 +258,8 @@ def tp_msg(data):
     utc_time = datetime.utcnow().strftime("%d-%b-%Y %H:%M")
     confidence = data['tp_conf']
     tsl_pct = round((1 - data['tsl_level'] / data['highest']) * 100, 2)
-    htf_label = "1D" if data['interval'] in ["1h", "4h"] else "1W"
+    htf_label = TIMEFRAME_CONFIG[data['interval']]['htf'].upper()
+
 
     return f"""
 🎯 TAKE PROFIT SIGNAL — {data['symbol']} @ ${data['price']} ({data['interval']})
