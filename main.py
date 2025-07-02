@@ -278,7 +278,7 @@ def tp_msg(data):
 • {'✅' if data['rejection_wick'] else '❌'} Rejection Wick: {'Long upper shadow detected' if data['rejection_wick'] else 'None'}
 • {'❌' if data['volume_spike'] else '✅'} Volume Weakening
 • {'✅' if data['price'] >= data['bb_upper'] else '❌'} Resistance Zone (Upper BB hit)
-• {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Still Bullish (be cautious)' if data['htf_trend'] else 'Bearish'}
+
 
 
 🎯 Confidence Score: {confidence}% — {confidence_tag(confidence)}
