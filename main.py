@@ -438,7 +438,8 @@ def analyze(symbol, interval, tsl_percent):
         tp_confidence += tp_weights.get("htf_bear", 0) if not htf_trend else 0 
 
 
-        tp_conf = round((tp_confidence / 125) * 100, 2)
+        tp_max_score = sum(tp_weights.values())
+        tp_conf = round((tp_confidence / tp_max_score) * 100, 2)
         tp = tp_conf >= config["tp_threshold"]
 
 
