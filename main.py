@@ -248,10 +248,13 @@ def entry_msg(data):
     utc_time = datetime.utcnow().strftime("%d-%b-%Y %H:%M")
     tsl_pct = round((1 - data['tsl_level'] / data['highest']) * 100, 2)
     htf_label = TIMEFRAME_CONFIG[data['interval']]['htf'].upper()
+    mcap = categorize_by_mcap(data['symbol'])
 
 
     return f"""
 🚀 ENTRY SIGNAL — {data['symbol']} @ ${data['price']} ({data['interval']})
+
+📂 Market Cap Category: *{mcap}*
 
 📈 Reasons:
 • {'✅' if data['macd_bullish'] else '❌'} MACD Histogram: {'Green & rising' if data['macd_bullish'] else 'Weak or flat'}
@@ -282,10 +285,13 @@ def tp_msg(data):
     confidence = data['tp_conf']
     tsl_pct = round((1 - data['tsl_level'] / data['highest']) * 100, 2)
     htf_label = TIMEFRAME_CONFIG[data['interval']]['htf'].upper()
+    mcap = categorize_by_mcap(data['symbol'])  # ✅ Add this
 
 
     return f"""
 🎯 TAKE PROFIT SIGNAL — {data['symbol']} @ ${data['price']} ({data['interval']})
+
+📂 Market Cap Category: *{mcap}*
 
 📉 Reasons:
 • {'✅' if data['macd_line'] < data['macd_signal'] else '❌'} MACD Histogram: {'Turning red' if data['macd_line'] < data['macd_signal'] else 'Still bullish'}
