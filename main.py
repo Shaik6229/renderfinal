@@ -67,9 +67,15 @@ def is_suppressed(df):
     try:
         bb = BollingerBands(df['close'], window=200, window_dev=2)
         width = bb.bollinger_hband() - bb.bollinger_lband()
-        avg_width = width.rolling(20).mean().iloc[-1]
-        return avg_width < 0.01 * df['close'].iloc[-1]
+        rolling_width = width.rolling(20)
+
+        avg_width = rolling_width.mean().iloc[-1]
+        std_width = rolling_width.std().iloc[-1]
+        dynamic_threshold = avg_width - std_width
+
+        return width.iloc[-1] < dynamic_threshold
     except: return True
+
 
 def fetch_ema(df, length=200):
     return EMAIndicator(df['close'], length).ema_indicator().iloc[-1]
@@ -216,7 +222,12 @@ def analyze(symbol, interval, tsl_percent):
         return None
 
     try:
-        rsi = RSIIndicator(df['close']).rsi().iloc[-1]
+        rsi_series = RSIIndicator(df['close']).rsi()
+        rsi = rsi_series.iloc[-1]
+        rsi_mean = rsi_series.rolling(14).mean().iloc[-1]
+        rsi_std = rsi_series.rolling(14).std().iloc[-1]
+        rsi_dynamic_threshold = rsi_mean - rsi_std
+
 
         macd = MACD(
             df['close'],
@@ -290,7 +301,7 @@ def analyze(symbol, interval, tsl_percent):
         confidence += 10 if not suppressed else 0
         confidence += 15 if divergence else 0
         confidence += 10 if price <= bb_lower else 0
-        confidence += 10 if rsi < 30 else 0
+        confidence += 10 if rsi < rsi_dynamic_threshold else 0
         confidence += 10 if stoch_k < 20 and stoch_d < 20 else 0
         confidence += 15 if macd_bullish else 0
         confidence += 15 if macd_hist_positive else 0
