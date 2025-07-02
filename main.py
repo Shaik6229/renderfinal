@@ -30,7 +30,7 @@ TIMEFRAME_CONFIG = {
             "vol_weak": 10,
             "rsi_div": 10,
             "stoch_cross": 10,
-            "rejection_wick": 10
+            "rejection_wick": 10,
             "htf_bear": 5
         },
         "entry_threshold": 65,  # 🔒 Stronger filters for fewer but better 30m signals
@@ -53,7 +53,7 @@ TIMEFRAME_CONFIG = {
             "vol_weak": 10,
             "rsi_div": 15,
             "stoch_cross": 10,
-            "rejection_wick": 5
+            "rejection_wick": 5,
             "htf_bear": 8
         },
         "entry_threshold": 70,  # 🚀 Wait for more confluence on 4H
@@ -76,7 +76,7 @@ TIMEFRAME_CONFIG = {
             "vol_weak": 5,
             "rsi_div": 20,
             "stoch_cross": 10,
-            "rejection_wick": 10
+            "rejection_wick": 10,
             "htf_bear": 10
         },
         "entry_threshold": 75,  # 🧠 Highest quality trades only
@@ -440,8 +440,6 @@ def analyze(symbol, interval, tsl_percent):
         tp_confidence += tp_weights.get("rsi_div", 0) if bearish_rsi_div else 0
         tp_confidence += tp_weights.get("stoch_cross", 0) if stoch_bear_crossover else 0
         tp_confidence += tp_weights.get("rejection_wick", 0) if rejection_wick else 0
-        tp_weights = config["tp_weights"]
-        tp_confidence = 0
 
 
         tp_conf = round((tp_confidence / 125) * 100, 2)
