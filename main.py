@@ -440,6 +440,7 @@ def analyze(symbol, interval, tsl_percent):
         tp_confidence += tp_weights.get("rsi_div", 0) if bearish_rsi_div else 0
         tp_confidence += tp_weights.get("stoch_cross", 0) if stoch_bear_crossover else 0
         tp_confidence += tp_weights.get("rejection_wick", 0) if rejection_wick else 0
+        tp_confidence += tp_weights.get("htf_bear", 0) if not htf_trend else 0 
 
 
         tp_conf = round((tp_confidence / 125) * 100, 2)
