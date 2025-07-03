@@ -33,11 +33,11 @@ TIMEFRAME_CONFIG = {
         "cooldown": 30,
         "confidence_weights": {
             "htf_trend": 15, "trend": 10, "volume": 15, "macd_hist": 20,
-            "stoch_crossover": 15, "ema50": 10, "divergence": 10
+            "stoch_crossover": 10, "ema50": 10, "divergence": 10
         },
         "tp_weights": {
             "rsi_overbought": 20,
-            "stoch_overbought": 20,
+            "stoch_overbought": 12,
             "bb_hit": 20,
             "macd_cross": 15,
             "vol_weak": 10,
