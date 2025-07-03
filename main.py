@@ -204,7 +204,7 @@ def fetch_ohlcv(symbol, interval, limit=500):
 def get_max_confidence_score(interval):
     weights = TIMEFRAME_CONFIG[interval]["confidence_weights"]
     # These are static bonuses added in scoring logic — add them too
-        static_bonuses = {
+    static_bonuses = {
         "bb_lower":         10,   # when price ≤ lower BB
         "rsi_dynamic":     18,   # max of 10+5+3 from your RSI logic
         "stoch_oversold":  10,   # stoch K&D both <20
@@ -219,6 +219,7 @@ def get_max_confidence_score(interval):
     }
     total = sum(weights.values()) + sum(static_bonuses.values()) + abs(sum(penalties.values()))
     return total
+
 
 
 def is_suppressed(df):
