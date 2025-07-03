@@ -349,7 +349,7 @@ def tp_msg(data):
 • {'✅' if data['macd_line'] < data['macd_signal'] else '❌'} MACD Histogram: {'Turning red' if data['macd_line'] < data['macd_signal'] else 'Still bullish'}
 • {'✅' if data['rsi'] > 70 else '❌'} RSI Overbought (RSI = {data['rsi']})
 • {'✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'} Stochastic Overbought (K: {data['stoch_k']}, D: {data['stoch_d']})
-• {'✅' if not data['volume_spike'] else '❌'} Volume Weakening: Momentum fading
+• {'✅' if data['volume_weakening'] else '❌'} Volume Weakening: Momentum fading
 • {'✅' if data['price'] >= data['bb_upper'] else '❌'} Resistance Zone (Upper BB hit)
 • {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Still Bullish (be cautious)' if data['htf_trend'] else 'Bearish'}
 • {'✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'} Stochastic Overbought (K: {data['stoch_k']}, D: {data['stoch_d']})
@@ -370,12 +370,15 @@ def tp_msg(data):
 
 # === Analysis Logic ===
 
-def analyze(symbol, interval):
+def analyze(symbol, interval, tsl_percent=None):
     config = TIMEFRAME_CONFIG[interval]
-    tsl_percent = config["tsl"]  # ✅ Get TSL value from config per timeframe
+    if tsl_percent is None:
+        tsl_percent = config["tsl"]
+
     df = fetch_ohlcv(symbol, interval)
     if df.empty or len(df) < 220:
         return None
+
 
     try:
         rsi_series = RSIIndicator(df['close']).rsi()
@@ -387,9 +390,9 @@ def analyze(symbol, interval):
 
         macd = MACD(
             df['close'],
-            window_slow=200,
-            window_fast=100,
-            window_sign=50
+            window_slow=26,
+            window_fast=12,
+            window_sign=9
         )
         macd_line = macd.macd().iloc[-1]
         macd_signal = macd.macd_signal().iloc[-1]
@@ -412,6 +415,7 @@ def analyze(symbol, interval):
         htf_trend = check_trend(symbol, config["htf"])
         suppressed = is_suppressed(df)
         volume_spike_ = volume_spike(df, symbol, interval)
+        volume_weakening = not volume_spike_
         divergence = rsi_divergence(df)
 
         # --- New Entry Enhancements ---
@@ -480,7 +484,7 @@ def analyze(symbol, interval):
         tp_confidence += tp_weights.get("stoch_overbought", 0) if stoch_k > 80 and stoch_d > 80 else 0
         tp_confidence += tp_weights.get("bb_hit", 0) if price >= bb_upper else 0
         tp_confidence += tp_weights.get("macd_cross", 0) if macd_line < macd_signal else 0
-        tp_confidence += tp_weights.get("vol_weak", 0) if not volume_spike_ else 0
+        tp_confidence += tp_weights.get("vol_weak", 0) if volume_weakening else 0
         tp_confidence += tp_weights.get("rsi_div", 0) if bearish_rsi_div else 0
         tp_confidence += tp_weights.get("stoch_cross", 0) if stoch_bear_crossover else 0
         tp_confidence += tp_weights.get("rejection_wick", 0) if rejection_wick else 0
@@ -507,6 +511,7 @@ def analyze(symbol, interval):
             'htf_trend': htf_trend,
             'suppressed': suppressed,
             'volume_spike': volume_spike_,
+            'volume_weakening': volume_weakening,
             'divergence': divergence,
             'initial_sl': round(df['low'].iloc[-5:].min(), 4),
             'highest': round(df['high'].max(), 4),
