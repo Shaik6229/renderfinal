@@ -321,6 +321,7 @@ def entry_msg(data):
 • {'✅' if data['ema_50'] and data['price'] > data['ema_50'] else '❌'} EMA 50: {'Price above EMA 50' if data['price'] > data['ema_50'] else 'Below EMA 50'}
 • {'✅' if not data['rsi_neutral'] else '❌'} RSI Zone: {'Strong zone' if not data['rsi_neutral'] else 'Neutral RSI (40–60)'}
 • {'✅' if not data['tight_range'] else '❌'} Range: {'Clear breakout potential' if not data['tight_range'] else 'Choppy sideways range'}
+• {'✅' if data['price_above_vwap'] else '❌'} VWAP Check: {'Price above VWAP' if data['price_above_vwap'] else 'Below VWAP'}
 
 
 🎯 Confidence Score: {data['confidence']}% — {confidence_tag(data['confidence'])}
@@ -410,6 +411,9 @@ def analyze(symbol, interval, tsl_percent=None):
         bb_upper = bb.bollinger_hband().iloc[-1]
         bb_lower = bb.bollinger_lband().iloc[-1]
         price = df['close'].iloc[-1]
+        vwap = (df['close'] * df['volume']).cumsum() / df['volume'].cumsum()
+        price_above_vwap = price > vwap.iloc[-1]
+
 
         trend = check_trend(symbol, interval)
         htf_trend = check_trend(symbol, config["htf"])
@@ -470,6 +474,8 @@ def analyze(symbol, interval, tsl_percent=None):
         confidence += 10 if not suppressed else 0
         confidence -= 10 if rsi_neutral else 0
         confidence -= 10 if tight_range else 0
+        confidence += 10 if price_above_vwap else 0
+
 
         max_score = get_max_confidence_score(interval)
         normalized_conf = round((confidence / max_score) * 100, 2)
@@ -526,6 +532,7 @@ def analyze(symbol, interval, tsl_percent=None):
             'bearish_rsi_div': bearish_rsi_div,
             'stoch_bear_crossover': stoch_bear_crossover,
             'rejection_wick': rejection_wick,
+            'price_above_vwap': price_above_vwap,
 
         }
 
