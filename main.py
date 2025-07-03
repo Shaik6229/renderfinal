@@ -527,7 +527,7 @@ def analyze(symbol, interval, tsl_percent=None):
             'stoch_d': round(stoch_d, 2),
             'stoch_crossover': stoch_crossover,
             'price': round(price, 4),
-            'ema_50': round(ema_50, 4),  
+            'ema_50': round(ema_50, 4), 
             'bb_upper': round(bb_upper, 4),
             'bb_lower': round(bb_lower, 4),
             'trend': trend,
