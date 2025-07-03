@@ -418,6 +418,8 @@ def momentum_warning_msg(data):
     return f"""
 ⚠️ *Momentum Weakening* — {data['symbol']} ({data['interval']})
 
+💰 *Current Price:* ${data['price']}
+
 📉 Possible Reversal Signals:
 • {'✅' if data['rsi'] > 70 else '❌'} RSI: {data['rsi']}
 • {'✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'} Stochastic Overbought (K: {data['stoch_k']}, D: {data['stoch_d']})
