@@ -225,8 +225,7 @@ def volume_spike(df, symbol, interval):
     vol_24h = symbol_volumes.get(symbol)
 
     if vol_24h is None:
-    return False  # or set a default like `mult = 1.3`
-
+        return False  # or set a default like `mult = 1.3`
 
     if vol_24h > 100_000_000:
         mult = 2.0
@@ -237,8 +236,8 @@ def volume_spike(df, symbol, interval):
     else:
         mult = 1.4
 
-
     return recent_vol.iloc[-1] > recent_vol.mean() + mult * recent_vol.std()
+
 
 def rsi_divergence(df):
     try:
