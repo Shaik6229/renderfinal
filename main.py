@@ -204,16 +204,18 @@ def fetch_ohlcv(symbol, interval, limit=500):
 def get_max_confidence_score(interval):
     weights = TIMEFRAME_CONFIG[interval]["confidence_weights"]
     # These are static bonuses added in scoring logic — add them too
-    static_bonuses = {
-        "bb_lower": 10,
-        "rsi_dynamic": 10,
-        "stoch_oversold": 10,
-        "macd_bullish": 15,
-        "no_suppression": 10
+        static_bonuses = {
+        "bb_lower":         10,   # when price ≤ lower BB
+        "rsi_dynamic":     18,   # max of 10+5+3 from your RSI logic
+        "stoch_oversold":  10,   # stoch K&D both <20
+        "macd_bullish":    15,   # MACD line > signal
+        "no_suppression":  10,   # not in a suppressed range
+        "price_above_vwap":10    # price above VWAP
     }
+
     penalties = {
-        "rsi_neutral": -10,
-        "tight_range": -10
+        "rsi_neutral": -10,   # neutral RSI zone
+        "tight_range":  -5    # tight range penalty
     }
     total = sum(weights.values()) + sum(static_bonuses.values()) + abs(sum(penalties.values()))
     return total
