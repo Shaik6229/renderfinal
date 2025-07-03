@@ -577,7 +577,13 @@ async def scan_symbols():
             if not data:
                 continue
 
-            logging.info(f"⏳ Checked {symbol} {tf} — Confidence: {data['confidence']}% — Entry: {data['entry']} — TP: {data['tp']}")
+            logging.info(
+                f"⏳ Checked {symbol} {tf} — Confidence (entry): {data['confidence']}% — "
+                f"TP Conf: {data['tp_conf']}% — Entry: {data['entry']} — TP: {data['tp']}"
+            )
+
+
+            
 
             if data['entry'] and alert_cooldown_passed(symbol, tf, "entry", cooldown):
                 await send_telegram_message(bot_token, chat_id, entry_msg(data))
