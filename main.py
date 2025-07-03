@@ -46,7 +46,7 @@ TIMEFRAME_CONFIG = {
             "rejection_wick": 10,
             "htf_bear": 5
         },
-        "entry_threshold": 65,  # 🔒 Stronger filters for fewer but better 30m signals
+        "entry_threshold": 60,  # 🔒 Stronger filters for fewer but better 30m signals
         "tp_threshold": 60,
         "tsl": 0.08             # 🔄 Tight TSL for scalps
     },
@@ -69,7 +69,7 @@ TIMEFRAME_CONFIG = {
             "rejection_wick": 5,
             "htf_bear": 8
         },
-        "entry_threshold": 70,  # 🚀 Wait for more confluence on 4H
+        "entry_threshold": 65,  # 🚀 Wait for more confluence on 4H
         "tp_threshold": 65,
         "tsl": 0.18             # 🧘‍♂️ Swing-safe TSL
     },
@@ -92,7 +92,7 @@ TIMEFRAME_CONFIG = {
             "rejection_wick": 10,
             "htf_bear": 10
         },
-        "entry_threshold": 75,  # 🧠 Highest quality trades only
+        "entry_threshold": 70,  # 🧠 Highest quality trades only
         "tp_threshold": 70,
         "tsl": 0.30             # 🛡️ Strong trend safety net
     }
@@ -483,14 +483,12 @@ def analyze(symbol, interval, tsl_percent=None):
         confidence += 15 if macd_bullish else 0
         confidence += 10 if not suppressed else 0
         confidence -= 10 if rsi_neutral else 0
-        confidence -= 10 if tight_range else 0
+        confidence -= 5 if tight_range else 0
         confidence += 10 if price_above_vwap else 0
 
 
         max_score = get_max_confidence_score(interval)
-        normalized_conf = round((confidence / max_score) * 100, 2)
-
-
+        normalized_conf = round((confidence / 115) * 100, 2)
 
         # --- TP Confidence Logic ---
         tp_weights = config["tp_weights"]
