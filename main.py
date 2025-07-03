@@ -203,7 +203,6 @@ def fetch_ohlcv(symbol, interval, limit=500):
 
 def get_max_confidence_score(interval):
     weights = TIMEFRAME_CONFIG[interval]["confidence_weights"]
-    # These are static bonuses added in scoring logic — add them too
     static_bonuses = {
         "bb_lower":         10,   # when price ≤ lower BB
         "rsi_dynamic":     18,   # max of 10+5+3 from your RSI logic
