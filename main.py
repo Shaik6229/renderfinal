@@ -27,6 +27,34 @@ pairs = [
 
 # === Timeframe-Specific Config ===
 TIMEFRAME_CONFIG = {
+    "15m": {
+    "htf": "1h",
+    "volume_window": 8,
+    "cooldown": 15,
+    "confidence_weights": {
+        "htf_trend": 10,
+        "trend": 10,
+        "volume": 10,
+        "macd_hist": 15,
+        "stoch_crossover": 10,
+        "ema50": 10,
+        "divergence": 10
+    },
+    "tp_weights": {
+        "rsi_overbought": 20,
+        "stoch_overbought": 12,
+        "bb_hit": 20,
+        "macd_cross": 10,
+        "vol_weak": 10,
+        "rsi_div": 10,
+        "stoch_cross": 10,
+        "rejection_wick": 5,
+        "htf_bear": 5
+    },
+    "entry_threshold": 65,
+    "tp_threshold": 60,
+    "tsl": 0.06  # Tighter for scalping
+},
     "30m": {
         "htf": "4h",
         "volume_window": 12,
@@ -676,6 +704,7 @@ def analyze(symbol, interval, tsl_percent=None):
 # === Bot Loop ===
 async def scan_symbols():
     intervals = {
+        "15m": TIMEFRAME_CONFIG["15m"]["cooldown"],
         "30m": TIMEFRAME_CONFIG["30m"]["cooldown"],
         "4h": TIMEFRAME_CONFIG["4h"]["cooldown"],
         "1d": TIMEFRAME_CONFIG["1d"]["cooldown"]
