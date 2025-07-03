@@ -189,12 +189,17 @@ def fetch_ohlcv(symbol, interval, limit=500):
         data = requests.get(url).json()
         df = pd.DataFrame(data, columns=['open_time','open','high','low','close','volume','ct','qav','t','tb','tq','i'])
         df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
-        for col in ['open','high','low','close','volume']:
-            df[col] = df[col].astype(float)
+
+        # ✅ Safe float conversion with error handling
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df.dropna(inplace=True)
+
         return df
     except Exception as e:
         logging.error(f"[{symbol} - {interval}] Failed OHLCV fetch: {e}")
         return pd.DataFrame()
+
 
 def get_max_confidence_score(interval):
     weights = TIMEFRAME_CONFIG[interval]["confidence_weights"]
@@ -215,18 +220,27 @@ def get_max_confidence_score(interval):
 
 
 def is_suppressed(df):
-    if df.empty or len(df) < 220: return True
+    if df.empty or len(df) < 220:
+        return True
+
     try:
-        bb = BollingerBands(df['close'], window=200, window_dev=2)
-        width = bb.bollinger_hband() - bb.bollinger_lband()
-        rolling_width = width.rolling(20)
+        # Use Bollinger Bands with 200-period window and 2 std dev
+        bb = BollingerBands(close=df['close'], window=200, window_dev=2)
+        bb_width = bb.bollinger_hband() - bb.bollinger_lband()
 
-        avg_width = rolling_width.mean().iloc[-1]
-        std_width = rolling_width.std().iloc[-1]
-        dynamic_threshold = avg_width - std_width
+        # Rolling mean and std of BB width over last 20 candles
+        rolling_mean = bb_width.rolling(window=20).mean()
+        rolling_std = bb_width.rolling(window=20).std()
 
-        return width.iloc[-1] < dynamic_threshold
-    except: return True
+        dynamic_threshold = rolling_mean.iloc[-1] - rolling_std.iloc[-1]
+
+        # Suppressed if current BB width < dynamic threshold
+        return bb_width.iloc[-1] < dynamic_threshold
+
+    except Exception as e:
+        logging.warning(f"Bollinger suppression check error: {e}")
+        return True
+
 
 
 def fetch_ema(df, length=200):
@@ -429,26 +443,40 @@ def analyze(symbol, interval, tsl_percent=None):
 
 
     try:
-        # === RSI & Smoothed RSI ===
-        rsi_series = RSIIndicator(df['close']).rsi()
-        rsi = rsi_series.iloc[-1]
-        rsi_mean = rsi_series.rolling(14).mean().iloc[-1]
-        rsi_std = rsi_series.rolling(14).std().iloc[-1]
-        rsi_dynamic_threshold = rsi_mean - rsi_std
-        smoothed_rsi = rsi_series.ewm(span=5).mean().iloc[-1]
+    # === RSI & Smoothed RSI ===
+    rsi_series = RSIIndicator(df['close']).rsi()
+    rsi = rsi_series.iloc[-1]
+    rsi_mean = rsi_series.rolling(14).mean().iloc[-1]
+    rsi_std = rsi_series.rolling(14).std().iloc[-1]
+    rsi_dynamic_threshold = rsi_mean - rsi_std
+    smoothed_rsi = rsi_series.ewm(span=5).mean().iloc[-1]
+
+    # === MACD & Crossover Logic ===
+    macd = MACD(
+        df['close'],
+        window_slow=26,
+        window_fast=12,
+        window_sign=9
+    )
+    macd_line = macd.macd().iloc[-1]
+    macd_signal = macd.macd_signal().iloc[-1]
+    macd_hist = macd.macd_diff().iloc[-1]
+
+    # Optional: check for bullish crossover confirmation
+    macd_hist_positive = macd.macd_diff().iloc[-2] < 0 and macd.macd_diff().iloc[-1] > 0
+    macd_bullish = macd_line > macd_signal
+
+except:
+    # Handle safely if indicator values fail
+    rsi = rsi_mean = rsi_std = rsi_dynamic_threshold = smoothed_rsi = None
+    macd_line = macd_signal = macd_hist = None
+    macd_hist_positive = False
+    macd_bullish = False
 
 
 
-        macd = MACD(
-            df['close'],
-            window_slow=26,
-            window_fast=12,
-            window_sign=9
-        )
-        macd_line = macd.macd().iloc[-1]
-        macd_signal = macd.macd_signal().iloc[-1]
-        macd_hist = macd.macd_diff().iloc[-1]
-        macd_bullish = macd_line > macd_signal
+
+        
 
         stoch = StochasticOscillator(df['high'], df['low'], df['close'])
         stoch_k = stoch.stoch().iloc[-1]
@@ -620,8 +648,6 @@ def analyze(symbol, interval, tsl_percent=None):
             'price_above_vwap': price_above_vwap,
             'momentum_score': momentum_score_pct,
             'momentum_warning': momentum_score_pct >= config.get("momentum_threshold", 50),
-
-
         }
 
     except Exception as e:
@@ -671,11 +697,6 @@ async def scan_symbols():
             if momentum_warning and alert_cooldown_passed(symbol, tf, "momentum", cooldown):
                 await send_telegram_message(bot_token, chat_id, momentum_warning_msg(data))
                 logging.info(f"⚠️ Momentum Warning: {symbol} {tf}")
-
-
-
-
-
 
 async def main_loop():
     loop_counter = 0
