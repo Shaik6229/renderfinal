@@ -9,7 +9,7 @@ from flask import Flask, request
 import asyncio
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
-from ta.trend import EMAIndicator, MACD, EMAIndicator
+from ta.trend import EMAIndicator, MACD,
 from threading import Thread
 
 pairs = [
@@ -224,13 +224,15 @@ def volume_spike(df, symbol, interval):
     global symbol_volumes
     vol_24h = symbol_volumes.get(symbol, None)
 
-    if vol_24h is not None:
-        if vol_24h < 5_000_000:
-            mult = 1.2  # Low volume coin
-        elif vol_24h > 50_000_000:
-            mult = 1.8  # High volume coin
-        else:
-            mult = 1.5  # Medium volume coin
+    if vol_24h > 100_000_000:
+        mult = 2.0
+    elif vol_24h > 50_000_000:
+        mult = 1.7
+    elif vol_24h < 3_000_000:
+        mult = 1.1
+    else:
+        mult = 1.4
+
 
     return recent_vol.iloc[-1] > recent_vol.mean() + mult * recent_vol.std()
 
@@ -448,6 +450,7 @@ def analyze(symbol, interval):
 
 
         # --- Updated Confidence Scoring ---
+        weights = config["confidence_weights"]
         confidence = 0
         confidence += weights.get("htf_trend", 0) if htf_trend else 0
         confidence += weights.get("trend", 0) if trend else 0
