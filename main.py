@@ -147,7 +147,7 @@ def fetch_24h_volumes():
         url = "https://api.binance.com/api/v3/ticker/24hr"
         response = requests.get(url)
         data = response.json()
-        # ✅ Save only relevant symbol:volume data from your `pairs` list
+        # Save only relevant symbol:volume data
         symbol_volumes = {
             item["symbol"]: float(item["quoteVolume"])
             for item in data
@@ -155,7 +155,7 @@ def fetch_24h_volumes():
         }
     except Exception as e:
         logging.error(f"⚠️ Volume fetch error: {e}")
-        symbol_volumes = {}     
+        symbol_volumes = {}
 
 # === Utility Functions ===
 def fetch_ohlcv(symbol, interval, limit=500):
