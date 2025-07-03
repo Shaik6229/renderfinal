@@ -523,6 +523,7 @@ def analyze(symbol, interval, tsl_percent=None):
             'rsi': round(rsi, 2),
             'stoch_k': round(stoch_k, 2),
             'stoch_d': round(stoch_d, 2),
+            'stoch_crossover': stoch_crossover,
             'price': round(price, 4),
             'bb_upper': round(bb_upper, 4),
             'bb_lower': round(bb_lower, 4),
