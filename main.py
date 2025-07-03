@@ -382,11 +382,14 @@ def analyze(symbol, interval, tsl_percent=None):
 
 
     try:
+        # === RSI & Smoothed RSI ===
         rsi_series = RSIIndicator(df['close']).rsi()
         rsi = rsi_series.iloc[-1]
         rsi_mean = rsi_series.rolling(14).mean().iloc[-1]
         rsi_std = rsi_series.rolling(14).std().iloc[-1]
         rsi_dynamic_threshold = rsi_mean - rsi_std
+        smoothed_rsi = rsi_series.ewm(span=5).mean().iloc[-1]
+
 
 
         macd = MACD(
@@ -468,7 +471,12 @@ def analyze(symbol, interval, tsl_percent=None):
         confidence += weights.get("ema50", 0) if price > ema_50 else 0
         confidence += weights.get("divergence", 0) if divergence else 0
         confidence += 10 if price <= bb_lower else 0
-        confidence += 10 if rsi < rsi_dynamic_threshold else 0
+        if rsi < rsi_dynamic_threshold and smoothed_rsi < rsi_dynamic_threshold:
+            confidence += 10
+        elif rsi < rsi_dynamic_threshold:
+            confidence += 5
+        elif smoothed_rsi < rsi_dynamic_threshold:
+            confidence += 3
         confidence += 10 if stoch_k < 20 and stoch_d < 20 else 0
         confidence += 15 if macd_bullish else 0
         confidence += 10 if not suppressed else 0
