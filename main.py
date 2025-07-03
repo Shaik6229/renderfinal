@@ -483,7 +483,8 @@ def analyze(symbol, interval, tsl_percent=None):
         confidence += 15 if macd_bullish else 0
         confidence += 10 if not suppressed else 0
         confidence -= 10 if rsi_neutral else 0
-        confidence -= 5 if tight_range else 0
+        if tight_range and not volume_spike_:
+            confidence -= 5
         confidence += 10 if price_above_vwap else 0
 
 
@@ -504,7 +505,8 @@ def analyze(symbol, interval, tsl_percent=None):
         tp_confidence += tp_weights.get("rejection_wick", 0) if rejection_wick else 0
         tp_confidence += tp_weights.get("htf_bear", 0) if not htf_trend else 0
         if price >= bb_upper and rsi > 70:
-            tp_confidence += 5  # You can tune this value
+            tp_confidence += min(5, round((rsi - 70) * 0.5))
+
 
 
 
