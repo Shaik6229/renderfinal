@@ -539,6 +539,7 @@ def analyze(symbol, interval, tsl_percent=None):
             'macd_signal': round(macd_signal, 4),
             'macd_hist': round(macd_hist, 4),
             'macd_bullish': macd_bullish,
+            'macd_hist_positive': macd_hist_positive,
             'entry': normalized_conf >= config.get("entry_threshold", 50),
             'tp': tp,
             'tp_conf': tp_conf,
