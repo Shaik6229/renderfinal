@@ -540,7 +540,7 @@ async def scan_symbols():
 
     for symbol in pairs:
         for tf, cooldown in intervals.items():  # <-- This line must be indented
-            data = analyze(symbol, tf, 0.25)
+            data = analyze(symbol, tf)
             if not data:
                 continue
 
