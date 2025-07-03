@@ -367,11 +367,10 @@ def tp_msg(data):
 """.strip()
 
 # === Analysis Logic ===
-def analyze(symbol, interval, tsl_percent):
-    config = TIMEFRAME_CONFIG[interval]
-    weights = config["confidence_weights"]
-    tsl_percent = config["tsl"]
 
+def analyze(symbol, interval):
+    config = TIMEFRAME_CONFIG[interval]
+    tsl_percent = config["tsl"]  # ✅ Get TSL value from config per timeframe
     df = fetch_ohlcv(symbol, interval)
     if df.empty or len(df) < 220:
         return None
