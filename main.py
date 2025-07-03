@@ -310,7 +310,7 @@ def entry_msg(data):
 • {'✅' if data['macd_bullish'] else '❌'} MACD Histogram: {'Green & rising' if data['macd_bullish'] else 'Weak or flat'}
 • {'✅' if data['rsi'] < 35 else '❌'} RSI: {'Rebounding from oversold (RSI = ' + str(data['rsi']) + ')' if data['rsi'] < 35 else 'Neutral/High (RSI = ' + str(data['rsi']) + ')'}
 • {'✅' if data['stoch_k'] < 30 and data['stoch_d'] < 30 else '❌'} Stochastic Oversold (K: {data['stoch_k']}, D: {data['stoch_d']})
-• {'✅' if data['volume_spike'] else '❌'} Volume Spike detected
+• {'✅' if data['volume_spike'] else '❌'} Volume Spike: Bullish momentum detected
 • {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Bullish' if data['htf_trend'] else 'Bearish'}
 • {'✅' if not data['suppressed'] else '❌'} Suppression: {'No' if not data['suppressed'] else 'Yes'}
 • {'✅' if data['divergence'] else '❌'} Divergence: {'Bullish RSI Divergence' if data['divergence'] else 'None'}
@@ -347,7 +347,7 @@ def tp_msg(data):
 • {'✅' if data['macd_line'] < data['macd_signal'] else '❌'} MACD Histogram: {'Turning red' if data['macd_line'] < data['macd_signal'] else 'Still bullish'}
 • {'✅' if data['rsi'] > 70 else '❌'} RSI Overbought (RSI = {data['rsi']})
 • {'✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'} Stochastic Overbought (K: {data['stoch_k']}, D: {data['stoch_d']})
-• {'❌' if data['volume_spike'] else '✅'} Volume Weakening
+• {'✅' if not data['volume_spike'] else '❌'} Volume Weakening: Momentum fading
 • {'✅' if data['price'] >= data['bb_upper'] else '❌'} Resistance Zone (Upper BB hit)
 • {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Still Bullish (be cautious)' if data['htf_trend'] else 'Bearish'}
 • {'✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'} Stochastic Overbought (K: {data['stoch_k']}, D: {data['stoch_d']})
