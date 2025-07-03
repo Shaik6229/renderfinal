@@ -222,7 +222,11 @@ def volume_spike(df, symbol, interval):
 
     # Use dynamic multiplier based on overall 24h quote volume
     global symbol_volumes
-    vol_24h = symbol_volumes.get(symbol, None)
+    vol_24h = symbol_volumes.get(symbol)
+
+    if vol_24h is None:
+    return False  # or set a default like `mult = 1.3`
+
 
     if vol_24h > 100_000_000:
         mult = 2.0
@@ -357,7 +361,6 @@ def tp_msg(data):
 • {'✅' if data['stoch_bear_crossover'] else '❌'} Stochastic Crossover: {'Bearish crossover' if data['stoch_bear_crossover'] else 'No crossover'}
 • {'✅' if data['bearish_rsi_div'] else '❌'} RSI Divergence: {'Bearish RSI divergence' if data['bearish_rsi_div'] else 'None'}
 • {'✅' if data['rejection_wick'] else '❌'} Rejection Wick: {'Long upper shadow detected' if data['rejection_wick'] else 'None'}
-• {'❌' if data['volume_spike'] else '✅'} Volume Weakening
 • {'✅' if data['price'] >= data['bb_upper'] else '❌'} Resistance Zone (Upper BB hit)
 
 
@@ -489,7 +492,7 @@ def analyze(symbol, interval, tsl_percent=None):
 
 
         max_score = get_max_confidence_score(interval)
-        normalized_conf = round((confidence / 115) * 100, 2)
+        normalized_conf = round((confidence / max_score) * 100, 2)
 
         # --- TP Confidence Logic ---
         tp_weights = config["tp_weights"]
