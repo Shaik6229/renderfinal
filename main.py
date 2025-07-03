@@ -398,7 +398,7 @@ def tp_msg(data):
 • {'✅' if data['stoch_bear_crossover'] else '❌'} Stochastic Crossover: {'Bearish crossover' if data['stoch_bear_crossover'] else 'No crossover'}
 • {'✅' if data['bearish_rsi_div'] else '❌'} RSI Divergence: {'Bearish RSI divergence' if data['bearish_rsi_div'] else 'None'}
 • {'✅' if data['rejection_wick'] else '❌'} Rejection Wick: {'Long upper shadow detected' if data['rejection_wick'] else 'None'}
-• {'✅' if data['price'] >= data['bb_upper'] else '❌'} Resistance Zone (Upper BB hit)
+
 
 
 
@@ -660,6 +660,8 @@ def analyze(symbol, interval, tsl_percent=None):
             'price_above_vwap': price_above_vwap,
             'momentum_score': momentum_score_pct,
             'momentum_warning': momentum_score_pct >= config.get("momentum_threshold", 50),
+            'rsi_neutral': rsi_neutral,
+            'tight_range': tight_range,
         }
 
     except Exception as e:
@@ -669,19 +671,16 @@ def analyze(symbol, interval, tsl_percent=None):
 
 # === Bot Loop ===
 async def scan_symbols():
-    
     intervals = {
-    "30m": TIMEFRAME_CONFIG["30m"]["cooldown"],
-    "4h": TIMEFRAME_CONFIG["4h"]["cooldown"],
-    "1d": TIMEFRAME_CONFIG["1d"]["cooldown"]
+        "30m": TIMEFRAME_CONFIG["30m"]["cooldown"],
+        "4h": TIMEFRAME_CONFIG["4h"]["cooldown"],
+        "1d": TIMEFRAME_CONFIG["1d"]["cooldown"]
     }
-
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-
-    for symbol in pairs:
-        for tf, cooldown in intervals.items():  # <-- This line must be indented
+    for symbol in pairs:              # ← 4 spaces indent
+        for tf, cooldown in intervals.items():  # ← 8 spaces indent
             data = analyze(symbol, tf)
             if not data:
                 continue
