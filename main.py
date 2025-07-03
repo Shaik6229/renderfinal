@@ -46,6 +46,14 @@ TIMEFRAME_CONFIG = {
             "rejection_wick": 10,
             "htf_bear": 5
         },
+        "momentum_weights": {
+            "rsi_overbought": 20,
+            "stoch_overbought": 20,
+            "macd_bearish": 25,
+            "rejection_wick": 20,
+            "volume_weak": 15
+        },
+        "momentum_threshold": 60,
         "entry_threshold": 60,  # 🔒 Stronger filters for fewer but better 30m signals
         "tp_threshold": 60,
         "tsl": 0.08             # 🔄 Tight TSL for scalps
@@ -69,6 +77,14 @@ TIMEFRAME_CONFIG = {
             "rejection_wick": 5,
             "htf_bear": 8
         },
+        "momentum_weights": {
+            "rsi_overbought": 25,
+            "stoch_overbought": 20,
+            "macd_bearish": 25,
+            "rejection_wick": 15,
+            "volume_weak": 15
+        },
+        "momentum_threshold": 65,
         "entry_threshold": 65,  # 🚀 Wait for more confluence on 4H
         "tp_threshold": 65,
         "tsl": 0.18             # 🧘‍♂️ Swing-safe TSL
@@ -92,11 +108,20 @@ TIMEFRAME_CONFIG = {
             "rejection_wick": 10,
             "htf_bear": 10
         },
+        "momentum_weights": {
+            "rsi_overbought": 30,
+            "stoch_overbought": 15,
+            "macd_bearish": 25,
+            "rejection_wick": 15,
+            "volume_weak": 15
+        },
+        "momentum_threshold": 70,
         "entry_threshold": 70,  # 🧠 Highest quality trades only
         "tp_threshold": 70,
         "tsl": 0.30             # 🛡️ Strong trend safety net
     }
 }
+
 
 
 
@@ -536,6 +561,28 @@ def analyze(symbol, interval, tsl_percent=None):
         tp_conf = round((tp_confidence / tp_max_score) * 100, 2)
         tp = tp_conf >= config["tp_threshold"]
 
+                # === Momentum Warning Scoring ===
+        momentum_score = 0
+        mw_weights = config.get("momentum_weights", {})
+
+        if rsi > 70:
+            momentum_score += mw_weights.get("rsi_overbought", 0)
+        if stoch_k > 80 and stoch_d > 80:
+            momentum_score += mw_weights.get("stoch_overbought", 0)
+        if macd_line < macd_signal:
+            momentum_score += mw_weights.get("macd_bearish", 0)
+        if rejection_wick:
+            momentum_score += mw_weights.get("rejection_wick", 0)
+        if not volume_spike_:
+            momentum_score += mw_weights.get("volume_weak", 0)
+
+        momentum_max_score = sum(mw_weights.values())
+        if momentum_max_score > 0:
+            momentum_score_pct = round((momentum_score / momentum_max_score) * 100, 2)
+        else:
+            momentum_score_pct = 0
+
+
 
 
         return {
@@ -571,6 +618,9 @@ def analyze(symbol, interval, tsl_percent=None):
             'stoch_bear_crossover': stoch_bear_crossover,
             'rejection_wick': rejection_wick,
             'price_above_vwap': price_above_vwap,
+            'momentum_score': momentum_score_pct,
+            'momentum_warning': momentum_score_pct >= config.get("momentum_threshold", 50),
+
 
         }
 
