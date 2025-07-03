@@ -477,6 +477,8 @@ def analyze(symbol, interval, tsl_percent=None):
             confidence += 5
         elif smoothed_rsi < rsi_dynamic_threshold:
             confidence += 3
+        if price <= bb_lower and rsi < 30:
+            confidence += 5
         confidence += 10 if stoch_k < 20 and stoch_d < 20 else 0
         confidence += 15 if macd_bullish else 0
         confidence += 10 if not suppressed else 0
@@ -502,7 +504,10 @@ def analyze(symbol, interval, tsl_percent=None):
         tp_confidence += tp_weights.get("rsi_div", 0) if bearish_rsi_div else 0
         tp_confidence += tp_weights.get("stoch_cross", 0) if stoch_bear_crossover else 0
         tp_confidence += tp_weights.get("rejection_wick", 0) if rejection_wick else 0
-        tp_confidence += tp_weights.get("htf_bear", 0) if not htf_trend else 0 
+        tp_confidence += tp_weights.get("htf_bear", 0) if not htf_trend else 0
+        if price >= bb_upper and rsi > 70:
+            tp_confidence += 5  # You can tune this value
+
 
 
         tp_max_score = sum(tp_weights.values())
