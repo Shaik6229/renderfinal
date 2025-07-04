@@ -652,6 +652,19 @@ def analyze(symbol, interval, tsl_percent=None):
             if momentum_max_score > 0
             else 0
         )
+        fired = {
+            "htf_trend":      htf_trend,
+            "trend":          trend,
+            "volume":         volume_spike_,
+            "macd":           macd_hist_positive,
+            "stoch":          stoch_crossover
+        }
+        logging.info(
+            f"✅ CONDITIONS FIRED for {symbol} {interval}: "
+            f"{', '.join(k for k,v in fired.items() if v)}"
+        )
+
+    
 
         return {
             'symbol': symbol,
