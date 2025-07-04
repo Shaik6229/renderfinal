@@ -48,8 +48,8 @@ TIMEFRAME_CONFIG = {
         "rejection_wick": 5,
         "htf_bear": 5
     },
-    "entry_threshold": 65,
-    "tp_threshold": 60,
+    "entry_threshold": 40,
+    "tp_threshold": 40,
     "tsl": 0.06  # Tighter for scalping
 },
     "30m": {
