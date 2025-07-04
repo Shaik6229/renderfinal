@@ -35,10 +35,7 @@ TIMEFRAME_CONFIG = {
         "htf_trend": 10,
         "trend": 10,
         "volume": 10,
-        "macd_hist": 15,
-        "stoch_crossover": 10,
-        "ema50": 10,
-        "divergence": 10
+        "macd_hist": 15   
     },
     "tp_weights": {
         "rsi_overbought": 20,
@@ -232,20 +229,17 @@ def fetch_ohlcv(symbol, interval, limit=500):
 def get_max_confidence_score(interval):
     weights = TIMEFRAME_CONFIG[interval]["confidence_weights"]
     static_bonuses = {
-        "bb_lower":         10,   # when price ≤ lower BB
-        "rsi_dynamic":     18,   # max of 10+5+3 from your RSI logic
-        "stoch_oversold":  10,   # stoch K&D both <20
-        "macd_bullish":    15,   # MACD line > signal
-        "no_suppression":  10,   # not in a suppressed range
-        "price_above_vwap":10    # price above VWAP
+        "bb_lower":         10,
+        "rsi_dynamic":     18,
+        "stoch_oversold":  10,
+        "macd_bullish":    15,
+        "no_suppression":  10,
+        "price_above_vwap":10
     }
-
-    penalties = {
-        "rsi_neutral": -10,   # neutral RSI zone
-        "tight_range":  -5    # tight range penalty
-    }
-    total = sum(weights.values()) + sum(static_bonuses.values()) + abs(sum(penalties.values()))
+    # Only include points you can actually earn:
+    total = sum(weights.values()) + sum(static_bonuses.values())
     return total
+
 
 
 
@@ -595,6 +589,7 @@ def analyze(symbol, interval, tsl_percent=None):
         confidence += 10 if price_above_vwap else 0
 
         max_score = get_max_confidence_score(interval)
+        logging.info(f"➡️ {symbol} {interval}: raw_conf={confidence}, max_score={max_score}")
         normalized_conf = round((confidence / max_score) * 100, 2)
 
         # === TP Confidence ===
