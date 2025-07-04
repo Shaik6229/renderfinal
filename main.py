@@ -13,17 +13,19 @@ from ta.trend import EMAIndicator, MACD
 from threading import Thread
 
 pairs = [
-    "SOLUSDT",  # Solana
-    "SUIUSDT",  # Sui
-    "APTUSDT",  # Aptos
-    "GALAUSDT", # Gala
-    "ADAUSDT",  # Cardano
-    "TRXUSDT",  # Tron
-    "XRPUSDT",  # Ripple
-    "SAHARAUSDT", # Sahara
-    "NEWTUSDT", # Newt
-    "GRTUSDT"   # The Graph
+    "SOLUSDT",    # Solana       — Blue Chip
+    "XRPUSDT",    # Ripple       — Blue Chip
+    "ADAUSDT",    # Cardano      — Mid Cap
+    "SUIUSDT",    # Sui          — Low Cap
+    "APTUSDT",    # Aptos        — Low Cap
+    "GALAUSDT",   # Gala         — Low Cap
+    "TRXUSDT",    # Tron         — Low Cap
+    "GRTUSDT",    # The Graph    — Low Cap
+    "SAHARAUSDT", # Sahara       — Low Cap¹
+    "NEWTUSDT",   # Newt         — Low Cap¹
+    "ZILUSDT"     # Zilliqa      — Low Cap
 ]
+
 
 # === Timeframe-Specific Config ===
 TIMEFRAME_CONFIG = {
