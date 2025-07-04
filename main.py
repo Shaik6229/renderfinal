@@ -390,7 +390,7 @@ def entry_msg(data):
 • {'✅' if data['ema_50'] and data['price'] > data['ema_50'] else '❌'} EMA 50: {'Price above EMA 50' if data['price'] > data['ema_50'] else 'Below EMA 50'}
 • {'✅' if not data['rsi_neutral'] else '❌'} RSI Zone: {'Strong zone' if not data['rsi_neutral'] else 'Neutral RSI (40–60)'}
 • {'✅' if not data['tight_range'] else '❌'} Range: {'Clear breakout potential' if not data['tight_range'] else 'Choppy sideways range'}
-• {'✅' if data['price_above_vwap'] else '❌'} VWAP Check: {'Price above VWAP' if data['price_above_vwap'] else 'Below VWAP'}
+
 
 
 🎯 Confidence Score: {data['confidence']}% — {confidence_tag(data['confidence'])}
