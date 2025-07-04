@@ -232,20 +232,7 @@ def fetch_ohlcv(symbol, interval, limit=500):
 
 def get_max_confidence_score(interval):
     weights = TIMEFRAME_CONFIG[interval]["confidence_weights"]
-    static_bonuses = {
-        "bb_lower":         10,
-        "rsi_dynamic":     18,
-        "stoch_oversold":  10,
-        "macd_bullish":    15,
-        "no_suppression":  10,
-        "price_above_vwap":10
-    }
-    # Only include points you can actually earn:
-    total = sum(weights.values()) + sum(static_bonuses.values())
-    return total
-
-
-
+    return sum(weights.values())
 
 def is_suppressed(df):
     if df.empty or len(df) < 220:
