@@ -551,191 +551,37 @@ def analyze(symbol, interval, tsl_percent=None):
             > 2 * abs(df['close'].iloc[-1] - df['open'].iloc[-1])
         )
 
-        # === Confidence Scoring ===
+        # === Entry Confidence Scoring ===
         weights = config["confidence_weights"]
-confidence = 0
+        confidence = 0
 
-# Major factors
-confidence += weights.get("htf_trend", 0) if htf_trend else 0
-confidence += weights.get("trend", 0) if trend else 0
-confidence += weights.get("volume", 0) if volume_spike_ else int(weights.get("volume", 0) * 0.3)  # Partial if no volume
-confidence += weights.get("macd_hist", 0) if macd_hist_positive else int(weights.get("macd_hist", 0) * 0.2)
-confidence += weights.get("stoch_crossover", 0) if stoch_crossover else int(weights.get("stoch_crossover", 0) * 0.5)
-confidence += weights.get("ema50", 0) if price > ema_50 else 0
+        # Major factors
+        confidence += weights.get("htf_trend", 0) if htf_trend else 0
+        confidence += weights.get("trend", 0) if trend else 0
+        confidence += weights.get("volume", 0) if volume_spike_ else int(weights.get("volume", 0) * 0.3)  # Partial if no volume
+        confidence += weights.get("macd_hist", 0) if macd_hist_positive else int(weights.get("macd_hist", 0) * 0.2)
+        confidence += weights.get("stoch_crossover", 0) if stoch_crossover else int(weights.get("stoch_crossover", 0) * 0.5)
+        confidence += weights.get("ema50", 0) if price > ema_50 else 0
 
-if divergence:
-    confidence += max(5, int(get_max_confidence_score(interval) * 0.08))
+        # Additional factors
+        if divergence:
+            confidence += max(5, int(get_max_confidence_score(interval) * 0.08))
+        if price_above_vwap:
+            confidence += int(get_max_confidence_score(interval) * 0.05)
+        if not suppressed:
+            confidence += int(get_max_confidence_score(interval) * 0.07)
+        else:
+            confidence -= int(get_max_confidence_score(interval) * 0.07)
+        if tight_range:
+            confidence -= int(get_max_confidence_score(interval) * 0.06)
+        if rsi_neutral:
+            confidence -= int(get_max_confidence_score(interval) * 0.05)
 
-if price_above_vwap:
-    confidence += int(get_max_confidence_score(interval) * 0.05)
+        confidence = max(0, min(confidence, get_max_confidence_score(interval)))
 
-if not suppressed:
-    confidence += int(get_max_confidence_score(interval) * 0.07)
-else:
-    confidence -= int(get_max_confidence_score(interval) * 0.07)
+        max_score = get_max_confidence_score(interval)
+        logging.info(f"➡️ {symbol} {interval}: raw
 
-if tight_range:
-    confidence -= int(get_max_confidence_score(interval) * 0.06)
-
-if rsi_neutral:
-    confidence -= int(get_max_confidence_score(interval) * 0.05)
-
-confidence = max(0, min(confidence, get_max_confidence_score(interval)))
-
-max_score = get_max_confidence_score(interval)
-logging.info(f"➡️ {symbol} {interval}: raw_conf={confidence}, max_score={max_score}")
-normalized_conf = round((confidence / max_score) * 100, 2)
-
-
-        
-
-
-        # === TP Confidence ===
-        tp_weights = config["tp_weights"]
-tp_confidence = 0
-tp_max_score = sum(tp_weights.values())
-
-# RSI Overbought: full points >70, half points 67-70
-if rsi:
-    if rsi > 70:
-        tp_confidence += tp_weights.get("rsi_overbought", 0)
-    elif rsi > 67:
-        tp_confidence += tp_weights.get("rsi_overbought", 0) * 0.5
-
-# Stoch Overbought: full points both >80, half points 77-80
-if stoch_k > 80 and stoch_d > 80:
-    tp_confidence += tp_weights.get("stoch_overbought", 0)
-elif stoch_k > 77 and stoch_d > 77:
-    tp_confidence += tp_weights.get("stoch_overbought", 0) * 0.5
-
-# BB upper hit: full points if above, half if within 0.5%
-if price >= bb_upper:
-    tp_confidence += tp_weights.get("bb_hit", 0)
-elif price >= bb_upper * 0.995:  # within 0.5% of upper band
-    tp_confidence += tp_weights.get("bb_hit", 0) * 0.5
-
-# MACD cross: full points line < signal, half points within 3%
-if macd_line is not None and macd_signal is not None:
-    if macd_line < macd_signal:
-        tp_confidence += tp_weights.get("macd_cross", 0)
-    elif macd_line < macd_signal * 1.03:
-        tp_confidence += tp_weights.get("macd_cross", 0) * 0.5
-
-# Volume: full points if weakening, half if just below mean
-if volume_weakening:
-    tp_confidence += tp_weights.get("vol_weak", 0)
-else:
-    recent_vol = df['volume'].iloc[-config["volume_window"]:]
-    if recent_vol.iloc[-1] < recent_vol.mean():
-        tp_confidence += tp_weights.get("vol_weak", 0) * 0.5
-
-# Bearish RSI div: full points if present
-if bearish_rsi_div:
-    tp_confidence += tp_weights.get("rsi_div", 0)
-
-# Stoch bear crossover: full points, half if starting to roll over
-if stoch_bear_crossover:
-    tp_confidence += tp_weights.get("stoch_cross", 0)
-elif stoch_k > 70 and stoch_k < stoch_d:
-    tp_confidence += tp_weights.get("stoch_cross", 0) * 0.5
-
-# Rejection wick: full points if present
-if rejection_wick:
-    tp_confidence += tp_weights.get("rejection_wick", 0)
-
-# HTF trend: full points if bearish, penalty if bullish
-if not htf_trend:
-    tp_confidence += tp_weights.get("htf_bear", 0)
-else:
-    tp_confidence -= tp_weights.get("htf_bear", 0) * 0.6  # mild penalty
-
-# Extra: small bonus if both BB upper hit and RSI>70 (same as your old logic)
-if price >= bb_upper and rsi and rsi > 70:
-    tp_confidence += min(5, round((rsi - 70) * 0.5))
-
-# Clip to [0, max]
-tp_confidence = max(0, min(tp_confidence, tp_max_score))
-
-tp_conf = round((tp_confidence / tp_max_score) * 100, 2)
-tp = tp_conf >= config["tp_threshold"]
-
-
-        # === Momentum Warning ===
-        momentum_score = 0
-        mw_weights = config.get("momentum_weights", {})
-        if rsi and rsi > 70:
-            momentum_score += mw_weights.get("rsi_overbought", 0)
-        if stoch_k > 80 and stoch_d > 80:
-            momentum_score += mw_weights.get("stoch_overbought", 0)
-        if macd_line < macd_signal:
-            momentum_score += mw_weights.get("macd_bearish", 0)
-        if rejection_wick:
-            momentum_score += mw_weights.get("rejection_wick", 0)
-        if not volume_spike_:
-            momentum_score += mw_weights.get("volume_weak", 0)
-
-        momentum_max_score = sum(mw_weights.values())
-        momentum_score_pct = (
-            round((momentum_score / momentum_max_score) * 100, 2)
-            if momentum_max_score > 0
-            else 0
-        )
-        fired = {
-            "htf_trend":      htf_trend,
-            "trend":          trend,
-            "volume":         volume_spike_,
-            "macd":           macd_hist_positive,
-            "stoch":          stoch_crossover
-        }
-        logging.info(
-            f"✅ CONDITIONS FIRED for {symbol} {interval}: "
-            f"{', '.join(k for k,v in fired.items() if v)}"
-        )
-
-    
-
-        return {
-            'symbol': symbol,
-            'interval': interval,
-            'confidence': normalized_conf,
-            'rsi': round(rsi, 2) if rsi is not None else None,
-            'stoch_k': round(stoch_k, 2),
-            'stoch_d': round(stoch_d, 2),
-            'stoch_crossover': stoch_crossover,
-            'price': round(price, 4),
-            'ema_50': round(ema_50, 4),
-            'bb_upper': round(bb_upper, 4),
-            'bb_lower': round(bb_lower, 4),
-            'trend': trend,
-            'htf_trend': htf_trend,
-            'suppressed': suppressed,
-            'volume_spike': volume_spike_,
-            'volume_weakening': volume_weakening,
-            'divergence': divergence,
-            'initial_sl': round(df['low'].iloc[-5:].min(), 4),
-            'highest': round(df['high'].max(), 4),
-            'tsl_level': round(df['high'].max() * (1 - tsl_percent), 4),
-            'macd_line': round(macd_line, 4) if macd_line is not None else None,
-            'macd_signal': round(macd_signal, 4) if macd_signal is not None else None,
-            'macd_hist': round(macd_hist, 4) if macd_hist is not None else None,
-            'macd_bullish': macd_bullish,
-            'macd_hist_positive': macd_hist_positive,
-            'entry': normalized_conf >= config.get("entry_threshold", 50),
-            'tp': tp,
-            'tp_conf': tp_conf,
-            'bearish_rsi_div': bearish_rsi_div,
-            'stoch_bear_crossover': stoch_bear_crossover,
-            'rejection_wick': rejection_wick,
-            'price_above_vwap': price_above_vwap,
-            'momentum_score': momentum_score_pct,
-            'momentum_warning': momentum_score_pct >= config.get("momentum_threshold", 50),
-            'rsi_neutral': rsi_neutral,
-            'tight_range': tight_range,
-        }
-
-    except Exception as e:
-        logging.error(f"Analysis error {symbol} {interval}: {e}")
-        return None
 
 
 # === Bot Loop ===
