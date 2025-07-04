@@ -592,42 +592,73 @@ normalized_conf = round((confidence / max_score) * 100, 2)
 
         # === TP Confidence ===
         tp_weights = config["tp_weights"]
-        tp_confidence = 0
-        tp_confidence += (
-            tp_weights.get("rsi_overbought", 0) if rsi and rsi > 70 else 0
-        )
-        tp_confidence += (
-            tp_weights.get("stoch_overbought", 0)
-            if stoch_k > 80 and stoch_d > 80
-            else 0
-        )
-        tp_confidence += (
-            tp_weights.get("bb_hit", 0) if price >= bb_upper else 0
-        )
-        tp_confidence += (
-            tp_weights.get("macd_cross", 0) if macd_line < macd_signal else 0
-        )
-        tp_confidence += (
-            tp_weights.get("vol_weak", 0) if volume_weakening else 0
-        )
-        tp_confidence += (
-            tp_weights.get("rsi_div", 0) if bearish_rsi_div else 0
-        )
-        tp_confidence += (
-            tp_weights.get("stoch_cross", 0) if stoch_bear_crossover else 0
-        )
-        tp_confidence += (
-            tp_weights.get("rejection_wick", 0) if rejection_wick else 0
-        )
-        tp_confidence += (
-            tp_weights.get("htf_bear", 0) if not htf_trend else 0
-        )
-        if price >= bb_upper and rsi and rsi > 70:
-            tp_confidence += min(5, round((rsi - 70) * 0.5))
+tp_confidence = 0
+tp_max_score = sum(tp_weights.values())
 
-        tp_max_score = sum(tp_weights.values())
-        tp_conf = round((tp_confidence / tp_max_score) * 100, 2)
-        tp = tp_conf >= config["tp_threshold"]
+# RSI Overbought: full points >70, half points 67-70
+if rsi:
+    if rsi > 70:
+        tp_confidence += tp_weights.get("rsi_overbought", 0)
+    elif rsi > 67:
+        tp_confidence += tp_weights.get("rsi_overbought", 0) * 0.5
+
+# Stoch Overbought: full points both >80, half points 77-80
+if stoch_k > 80 and stoch_d > 80:
+    tp_confidence += tp_weights.get("stoch_overbought", 0)
+elif stoch_k > 77 and stoch_d > 77:
+    tp_confidence += tp_weights.get("stoch_overbought", 0) * 0.5
+
+# BB upper hit: full points if above, half if within 0.5%
+if price >= bb_upper:
+    tp_confidence += tp_weights.get("bb_hit", 0)
+elif price >= bb_upper * 0.995:  # within 0.5% of upper band
+    tp_confidence += tp_weights.get("bb_hit", 0) * 0.5
+
+# MACD cross: full points line < signal, half points within 3%
+if macd_line is not None and macd_signal is not None:
+    if macd_line < macd_signal:
+        tp_confidence += tp_weights.get("macd_cross", 0)
+    elif macd_line < macd_signal * 1.03:
+        tp_confidence += tp_weights.get("macd_cross", 0) * 0.5
+
+# Volume: full points if weakening, half if just below mean
+if volume_weakening:
+    tp_confidence += tp_weights.get("vol_weak", 0)
+else:
+    recent_vol = df['volume'].iloc[-config["volume_window"]:]
+    if recent_vol.iloc[-1] < recent_vol.mean():
+        tp_confidence += tp_weights.get("vol_weak", 0) * 0.5
+
+# Bearish RSI div: full points if present
+if bearish_rsi_div:
+    tp_confidence += tp_weights.get("rsi_div", 0)
+
+# Stoch bear crossover: full points, half if starting to roll over
+if stoch_bear_crossover:
+    tp_confidence += tp_weights.get("stoch_cross", 0)
+elif stoch_k > 70 and stoch_k < stoch_d:
+    tp_confidence += tp_weights.get("stoch_cross", 0) * 0.5
+
+# Rejection wick: full points if present
+if rejection_wick:
+    tp_confidence += tp_weights.get("rejection_wick", 0)
+
+# HTF trend: full points if bearish, penalty if bullish
+if not htf_trend:
+    tp_confidence += tp_weights.get("htf_bear", 0)
+else:
+    tp_confidence -= tp_weights.get("htf_bear", 0) * 0.6  # mild penalty
+
+# Extra: small bonus if both BB upper hit and RSI>70 (same as your old logic)
+if price >= bb_upper and rsi and rsi > 70:
+    tp_confidence += min(5, round((rsi - 70) * 0.5))
+
+# Clip to [0, max]
+tp_confidence = max(0, min(tp_confidence, tp_max_score))
+
+tp_conf = round((tp_confidence / tp_max_score) * 100, 2)
+tp = tp_conf >= config["tp_threshold"]
+
 
         # === Momentum Warning ===
         momentum_score = 0
