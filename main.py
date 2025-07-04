@@ -52,8 +52,8 @@ TIMEFRAME_CONFIG = {
         "rejection_wick": 5,
         "htf_bear": 5
     },
-    "entry_threshold": 60,
-    "tp_threshold": 40,
+    "entry_threshold": 55,
+    "tp_threshold": 55,
     "tsl": 0.06  # Tighter for scalping
 },
     "30m": {
@@ -83,7 +83,7 @@ TIMEFRAME_CONFIG = {
             "volume_weak": 15
         },
         "momentum_threshold": 60,
-        "entry_threshold": 60,  # 🔒 Stronger filters for fewer but better 30m signals
+        "entry_threshold": 55,  # 🔒 Stronger filters for fewer but better 30m signals
         "tp_threshold": 60,
         "tsl": 0.08             # 🔄 Tight TSL for scalps
     },
@@ -114,7 +114,7 @@ TIMEFRAME_CONFIG = {
             "volume_weak": 15
         },
         "momentum_threshold": 65,
-        "entry_threshold": 65,  # 🚀 Wait for more confluence on 4H
+        "entry_threshold": 60,  # 🚀 Wait for more confluence on 4H
         "tp_threshold": 65,
         "tsl": 0.18             # 🧘‍♂️ Swing-safe TSL
     },
@@ -145,7 +145,7 @@ TIMEFRAME_CONFIG = {
             "volume_weak": 15
         },
         "momentum_threshold": 70,
-        "entry_threshold": 70,  # 🧠 Highest quality trades only
+        "entry_threshold": 65,  # 🧠 Highest quality trades only
         "tp_threshold": 70,
         "tsl": 0.30             # 🛡️ Strong trend safety net
     }
@@ -553,37 +553,39 @@ def analyze(symbol, interval, tsl_percent=None):
 
         # === Confidence Scoring ===
         weights = config["confidence_weights"]
-        confidence = 0
-        confidence += (weights.get("htf_trend", 0) if htf_trend else 0)
-        confidence += (weights.get("trend", 0) if trend else 0)
-        confidence += (weights.get("volume", 0) if volume_spike_ else 0)
-        confidence += (weights.get("macd_hist", 0) if macd_hist_positive else 0)
-        confidence += (weights.get("stoch_crossover", 0) if stoch_crossover else 0)
-        confidence += (weights.get("ema50", 0) if price > ema_50 else 0)
-        
-        # The following static bonuses/penalties are now disabled:
-        # confidence += weights.get("divergence", 0) if divergence else 0
-        # confidence += 10 if price <= bb_lower else 0
-        # if rsi is not None and smoothed_rsi is not None:
-        #     if rsi < rsi_dynamic_threshold and smoothed_rsi < rsi_dynamic_threshold:
-        #         confidence += 10
-        #     elif rsi < rsi_dynamic_threshold:
-        #         confidence += 5
-        #     elif smoothed_rsi < rsi_dynamic_threshold:
-        #         confidence += 3
-        #     if price <= bb_lower and rsi < 30:
-        #         confidence += 5
-        #     confidence += 10 if stoch_k < 20 and stoch_d < 20 else 0
-        # confidence += 15 if macd_bullish else 0
-        # confidence += 10 if not suppressed else 0
-        # confidence -= 10 if rsi_neutral else 0
-        # if tight_range and not volume_spike_:
-        #     confidence -= 5
-        # confidence += 10 if price_above_vwap else 0
-        
-        max_score = get_max_confidence_score(interval)
-        logging.info(f"➡️ {symbol} {interval}: raw_conf={confidence}, max_score={max_score}")
-        normalized_conf = round((confidence / max_score) * 100, 2)
+confidence = 0
+
+# Major factors
+confidence += weights.get("htf_trend", 0) if htf_trend else 0
+confidence += weights.get("trend", 0) if trend else 0
+confidence += weights.get("volume", 0) if volume_spike_ else int(weights.get("volume", 0) * 0.3)  # Partial if no volume
+confidence += weights.get("macd_hist", 0) if macd_hist_positive else int(weights.get("macd_hist", 0) * 0.2)
+confidence += weights.get("stoch_crossover", 0) if stoch_crossover else int(weights.get("stoch_crossover", 0) * 0.5)
+confidence += weights.get("ema50", 0) if price > ema_50 else 0
+
+if divergence:
+    confidence += max(5, int(get_max_confidence_score(interval) * 0.08))
+
+if price_above_vwap:
+    confidence += int(get_max_confidence_score(interval) * 0.05)
+
+if not suppressed:
+    confidence += int(get_max_confidence_score(interval) * 0.07)
+else:
+    confidence -= int(get_max_confidence_score(interval) * 0.07)
+
+if tight_range:
+    confidence -= int(get_max_confidence_score(interval) * 0.06)
+
+if rsi_neutral:
+    confidence -= int(get_max_confidence_score(interval) * 0.05)
+
+confidence = max(0, min(confidence, get_max_confidence_score(interval)))
+
+max_score = get_max_confidence_score(interval)
+logging.info(f"➡️ {symbol} {interval}: raw_conf={confidence}, max_score={max_score}")
+normalized_conf = round((confidence / max_score) * 100, 2)
+
 
         
 
