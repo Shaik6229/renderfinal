@@ -52,7 +52,7 @@ TIMEFRAME_CONFIG = {
         "rejection_wick": 5,
         "htf_bear": 5
     },
-    "entry_threshold": 40,
+    "entry_threshold": 60,
     "tp_threshold": 40,
     "tsl": 0.06  # Tighter for scalping
 },
@@ -567,34 +567,39 @@ def analyze(symbol, interval, tsl_percent=None):
         # === Confidence Scoring ===
         weights = config["confidence_weights"]
         confidence = 0
-        confidence += weights.get("htf_trend", 0) if htf_trend else 0
-        confidence += weights.get("trend", 0) if trend else 0
-        confidence += weights.get("volume", 0) if volume_spike_ else 0
-        confidence += weights.get("macd_hist", 0) if macd_hist_positive else 0
-        confidence += weights.get("stoch_crossover", 0) if stoch_crossover else 0
-        confidence += weights.get("ema50", 0) if price > ema_50 else 0
-        confidence += weights.get("divergence", 0) if divergence else 0
-        confidence += 10 if price <= bb_lower else 0
-        if rsi is not None and smoothed_rsi is not None:
-            if rsi < rsi_dynamic_threshold and smoothed_rsi < rsi_dynamic_threshold:
-                confidence += 10
-            elif rsi < rsi_dynamic_threshold:
-                confidence += 5
-            elif smoothed_rsi < rsi_dynamic_threshold:
-                confidence += 3
-            if price <= bb_lower and rsi < 30:
-                confidence += 5
-            confidence += 10 if stoch_k < 20 and stoch_d < 20 else 0
-        confidence += 15 if macd_bullish else 0
-        confidence += 10 if not suppressed else 0
-        confidence -= 10 if rsi_neutral else 0
-        if tight_range and not volume_spike_:
-            confidence -= 5
-        confidence += 10 if price_above_vwap else 0
-
+        confidence += (weights.get("htf_trend", 0) if htf_trend else 0)
+        confidence += (weights.get("trend", 0) if trend else 0)
+        confidence += (weights.get("volume", 0) if volume_spike_ else 0)
+        confidence += (weights.get("macd_hist", 0) if macd_hist_positive else 0)
+        confidence += (weights.get("stoch_crossover", 0) if stoch_crossover else 0)
+        confidence += (weights.get("ema50", 0) if price > ema_50 else 0)
+        
+        # The following static bonuses/penalties are now disabled:
+        # confidence += weights.get("divergence", 0) if divergence else 0
+        # confidence += 10 if price <= bb_lower else 0
+        # if rsi is not None and smoothed_rsi is not None:
+        #     if rsi < rsi_dynamic_threshold and smoothed_rsi < rsi_dynamic_threshold:
+        #         confidence += 10
+        #     elif rsi < rsi_dynamic_threshold:
+        #         confidence += 5
+        #     elif smoothed_rsi < rsi_dynamic_threshold:
+        #         confidence += 3
+        #     if price <= bb_lower and rsi < 30:
+        #         confidence += 5
+        #     confidence += 10 if stoch_k < 20 and stoch_d < 20 else 0
+        # confidence += 15 if macd_bullish else 0
+        # confidence += 10 if not suppressed else 0
+        # confidence -= 10 if rsi_neutral else 0
+        # if tight_range and not volume_spike_:
+        #     confidence -= 5
+        # confidence += 10 if price_above_vwap else 0
+        
         max_score = get_max_confidence_score(interval)
         logging.info(f"➡️ {symbol} {interval}: raw_conf={confidence}, max_score={max_score}")
         normalized_conf = round((confidence / max_score) * 100, 2)
+
+        
+
 
         # === TP Confidence ===
         tp_weights = config["tp_weights"]
