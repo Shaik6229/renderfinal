@@ -580,7 +580,8 @@ def analyze(symbol, interval, tsl_percent=None):
         confidence = max(0, min(confidence, get_max_confidence_score(interval)))
 
         max_score = get_max_confidence_score(interval)
-        logging.info(f"➡️ {symbol} {interval}: raw
+        logging.info(f"➡️ {symbol} {interval}: raw_conf={confidence}, max_score={max_score}")
+
 
 
 
