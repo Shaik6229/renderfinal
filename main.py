@@ -35,7 +35,8 @@ TIMEFRAME_CONFIG = {
         "htf_trend": 10,
         "trend": 10,
         "volume": 10,
-        "macd_hist": 15   
+        "macd_hist": 15,
+        "stoch_crossover": 5
     },
     "tp_weights": {
         "rsi_overbought": 20,
