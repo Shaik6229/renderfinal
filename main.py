@@ -506,10 +506,6 @@ def analyze(symbol, interval, tsl_percent=None):
         bb_lower = bb.bollinger_lband().iloc[-1]
         price = df['close'].iloc[-1]
 
-        # === VWAP ===
-        vwap = (df['close'] * df['volume']).cumsum() / df['volume'].cumsum()
-        price_above_vwap = price > vwap.iloc[-1]
-
         # Other checks
         trend = check_trend(symbol, interval)
         htf_trend = check_trend(symbol, config["htf"])
@@ -567,8 +563,6 @@ def analyze(symbol, interval, tsl_percent=None):
         # Additional factors
         if divergence:
             confidence += max(5, int(get_max_confidence_score(interval) * 0.08))
-        if price_above_vwap:
-            confidence += int(get_max_confidence_score(interval) * 0.05)
         if not suppressed:
             confidence += int(get_max_confidence_score(interval) * 0.07)
         else:
@@ -717,7 +711,6 @@ def analyze(symbol, interval, tsl_percent=None):
             'bearish_rsi_div': bearish_rsi_div,
             'stoch_bear_crossover': stoch_bear_crossover,
             'rejection_wick': rejection_wick,
-            'price_above_vwap': price_above_vwap,
             'momentum_score': momentum_score_pct,
             'momentum_warning': momentum_score_pct >= config.get("momentum_threshold", 50),
             'rsi_neutral': rsi_neutral,
