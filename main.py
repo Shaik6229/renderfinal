@@ -44,135 +44,122 @@ pairs = [
 # === Timeframe-Specific Config ===
 TIMEFRAME_CONFIG = {
     "15m": {
-    "htf": "1h",
-    "volume_window": 8,
-    "cooldown": 15,
-    "confidence_weights": {
-        "htf_trend": 10,
-        "trend": 10,
-        "volume": 10,
-        "macd_hist": 15,
-        "stoch_crossover": 10,
-        "ema50": 10,
-        "divergence": 10
+        "htf": "1h",
+        "volume_window": 8,
+        "cooldown": 15,
+        "confidence_weights": {
+            "htf_trend": 7,
+            "trend": 8,
+            "volume": 18,
+            "macd_hist": 15,
+            "stoch_crossover": 12,
+            "ema50": 10,
+            "divergence": 7
+        },
+        "tp_weights": {
+            "rsi_overbought": 17,
+            "stoch_overbought": 15,
+            "bb_hit": 13,
+            "macd_cross": 10,
+            "vol_weak": 13,
+            "rsi_div": 10,
+            "stoch_cross": 7,
+            "rejection_wick": 5,
+            "htf_bear": 5,
+            "volume_confirmation": 15
+        },
+        "entry_threshold": 60,
+        "tp_threshold": 55,
+        "tsl": 0.07
     },
-    "tp_weights": {
-        "rsi_overbought": 20,
-        "stoch_overbought": 15,
-        "bb_hit": 15,
-        "macd_cross": 10,
-        "vol_weak": 10,
-        "rsi_div": 10,
-        "stoch_cross": 10,
-        "rejection_wick": 5,
-        "htf_bear": 5,
-        "volume_confirmation": 15,
-    },
-    "entry_threshold": 65,
-    "tp_threshold": 60,
-    "tsl": 0.06  # Tighter for scalping
-},
     "30m": {
         "htf": "4h",
         "volume_window": 12,
         "cooldown": 30,
         "confidence_weights": {
-            "htf_trend": 15, "trend": 10, "volume": 15, "macd_hist": 20,
-            "stoch_crossover": 10, "ema50": 10, "divergence": 10
+            "htf_trend": 10,
+            "trend": 10,
+            "volume": 15,
+            "macd_hist": 17,
+            "stoch_crossover": 10,
+            "ema50": 10,
+            "divergence": 8
         },
         "tp_weights": {
             "rsi_overbought": 20,
-            "stoch_overbought": 15,
-            "bb_hit": 20,
-            "macd_cross": 15,
-            "vol_weak": 10,
-            "rsi_div": 10,
-            "stoch_cross": 10,
-            "rejection_wick": 10,
-            "htf_bear": 5,
-            "volume_confirmation": 15,
+            "stoch_overbought": 13,
+            "bb_hit": 13,
+            "macd_cross": 13,
+            "vol_weak": 13,
+            "rsi_div": 8,
+            "stoch_cross": 8,
+            "rejection_wick": 6,
+            "htf_bear": 6,
+            "volume_confirmation": 12
         },
-        "momentum_weights": {
-            "rsi_overbought": 20,
-            "stoch_overbought": 20,
-            "macd_bearish": 25,
-            "rejection_wick": 20,
-            "volume_weak": 15
-        },
-        "momentum_threshold": 60,
-        "entry_threshold": 60,  # 🔒 Stronger filters for fewer but better 30m signals
-        "tp_threshold": 60,
-        "tsl": 0.08             # 🔄 Tight TSL for scalps
+        "entry_threshold": 62,
+        "tp_threshold": 58,
+        "tsl": 0.09
     },
     "4h": {
         "htf": "1d",
         "volume_window": 20,
         "cooldown": 60,
         "confidence_weights": {
-            "htf_trend": 25, "trend": 15, "volume": 15, "macd_hist": 15,
-            "stoch_crossover": 10, "ema50": 10, "divergence": 15
+            "htf_trend": 18,
+            "trend": 14,
+            "volume": 12,
+            "macd_hist": 16,
+            "stoch_crossover": 9,
+            "ema50": 10,
+            "divergence": 11
         },
         "tp_weights": {
-            "rsi_overbought": 25,
-            "stoch_overbought": 20,
+            "rsi_overbought": 24,
+            "stoch_overbought": 15,
             "bb_hit": 15,
-            "macd_cross": 15,
+            "macd_cross": 13,
             "vol_weak": 10,
-            "rsi_div": 15,
-            "stoch_cross": 10,
-            "rejection_wick": 5,
-            "htf_bear": 8,
-            "volume_confirmation": 15,
+            "rsi_div": 9,
+            "stoch_cross": 6,
+            "rejection_wick": 4,
+            "htf_bear": 10,
+            "volume_confirmation": 12
         },
-        "momentum_weights": {
-            "rsi_overbought": 25,
-            "stoch_overbought": 20,
-            "macd_bearish": 25,
-            "rejection_wick": 15,
-            "volume_weak": 15
-        },
-        "momentum_threshold": 65,
-        "entry_threshold": 65,  # 🚀 Wait for more confluence on 4H
-        "tp_threshold": 65,
-        "tsl": 0.18             # 🧘‍♂️ Swing-safe TSL
+        "entry_threshold": 66,
+        "tp_threshold": 60,
+        "tsl": 0.15
     },
     "1d": {
         "htf": "1w",
         "volume_window": 30,
         "cooldown": 180,
         "confidence_weights": {
-            "htf_trend": 30, "trend": 20, "volume": 10, "macd_hist": 15,
-            "stoch_crossover": 5, "ema50": 15, "divergence": 20
+            "htf_trend": 24,
+            "trend": 18,
+            "volume": 7,
+            "macd_hist": 16,
+            "stoch_crossover": 7,
+            "ema50": 13,
+            "divergence": 15
         },
         "tp_weights": {
-            "rsi_overbought": 30,
-            "stoch_overbought": 15,
-            "bb_hit": 20,
-            "macd_cross": 10,
-            "vol_weak": 5,
-            "rsi_div": 20,
-            "stoch_cross": 10,
-            "rejection_wick": 10,
-            "htf_bear": 10,
-            "volume_confirmation": 15,
+            "rsi_overbought": 24,
+            "stoch_overbought": 10,
+            "bb_hit": 19,
+            "macd_cross": 12,
+            "vol_weak": 6,
+            "rsi_div": 13,
+            "stoch_cross": 6,
+            "rejection_wick": 6,
+            "htf_bear": 12,
+            "volume_confirmation": 12
         },
-        "momentum_weights": {
-            "rsi_overbought": 30,
-            "stoch_overbought": 15,
-            "macd_bearish": 25,
-            "rejection_wick": 15,
-            "volume_weak": 15
-        },
-        "momentum_threshold": 70,
-        "entry_threshold": 70,  # 🧠 Highest quality trades only
-        "tp_threshold": 70,
-        "tsl": 0.30             # 🛡️ Strong trend safety net
+        "entry_threshold": 70,
+        "tp_threshold": 65,
+        "tsl": 0.24
     }
 }
-
-
-
-
 
 
 # === Logging ===
