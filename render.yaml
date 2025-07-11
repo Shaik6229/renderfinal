@@ -5,7 +5,24 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
-      - key: TELEGRAM_BOT_TOKEN
+      - key: TELEGRAM_BOT_TOKEN_15M
         value: 8196216430:AAHSrVGKnQJgO61qjGDhMSHeK1xddrMje4g
-      - key: TELEGRAM_CHAT_ID
+      - key: TELEGRAM_BOT_TOKEN_30M
+        value: 7851597916:AAHpLRdEljZ9wFRlaDIPn2XMiPmxprDETXY
+      - key: TELEGRAM_BOT_TOKEN_4H
+        value: 7319586463:AAGakL2Zofy-yquAfMHIpjARMtXBLQmDGbs
+      - key: TELEGRAM_BOT_TOKEN_1D
+        value: 8058090510:AAG52h1rpjKndNv-tbMBH9mOTvtyA7iPbRY
+      - key: TELEGRAM_CHAT_ID_15M
         value: 7128406135
+      - key: TELEGRAM_CHAT_ID_30M
+        value: 7128406135
+      - key: TELEGRAM_CHAT_ID_4H
+        value: 7128406135
+      - key: TELEGRAM_CHAT_ID_1D
+        value: 7128406135
+      # The old variables are not used, you can remove them:
+      # - key: TELEGRAM_BOT_TOKEN
+      #   value: <old_token>
+      # - key: TELEGRAM_CHAT_ID
+      #   value: <old_chat_id>
