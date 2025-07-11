@@ -463,29 +463,6 @@ def tp_msg(data):
 🕒 IST: {ist_time}
 """.strip()
 
-def momentum_warning_msg(data):
-    ist_time = get_time()
-    utc_time = datetime.utcnow().strftime("%d-%b-%Y %H:%M")
-
-    return f"""
-⚠️ *Momentum Weakening* — {data['symbol']} ({data['interval']})
-
-💰 *Current Price:* ${data['price']}
-
-📉 Possible Reversal Signals:
-• {'✅' if data['rsi'] > 70 else '❌'} RSI: {data['rsi']}
-• {'✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'} Stochastic Overbought (K: {data['stoch_k']}, D: {data['stoch_d']})
-• {'✅' if data['macd_line'] < data['macd_signal'] else '❌'} MACD: Histogram weakening
-• {'✅' if data['rejection_wick'] else '❌'} Rejection Wick
-• {'✅' if not data['volume_spike'] else '❌'} Volume: Weakening
-
-💡 Price hasn't hit TP yet — this may be an early sign of reversal. Tighten SL or book partial.
-
-🕒 UTC: {utc_time}
-🕒 IST: {ist_time}
-""".strip()
-
-
 # === Analysis Logic ===
 def analyze(symbol, interval, tsl_percent=None):
     try:
@@ -716,8 +693,6 @@ def analyze(symbol, interval, tsl_percent=None):
             'bearish_rsi_div': bearish_rsi_div,
             'stoch_bear_crossover': stoch_bear_crossover,
             'rejection_wick': rejection_wick,
-            'momentum_score': momentum_score_pct,
-            'momentum_warning': momentum_score_pct >= config.get("momentum_threshold", 50),
             'rsi_neutral': rsi_neutral,
             'tight_range': tight_range,
         }
@@ -761,18 +736,6 @@ async def scan_symbols():
             if data['tp'] and alert_cooldown_passed(symbol, tf, "tp", cooldown):
                 await send_telegram_message(bot_token, chat_id, tp_msg(data))
                 logging.info(f"🎯 TP alert: {symbol} {tf}")
-
-            # === ⚠️ Momentum Warning ===
-            momentum_warning = (
-                (data['rsi'] > 70 and data['stoch_k'] > 80 and data['stoch_d'] > 80) or
-                (data['macd_line'] < data['macd_signal'] and data['rsi'] > 65) or
-                (data['rejection_wick'] and data['rsi'] > 68) or
-                (not data['volume_spike'] and data['rsi'] > 70)
-            )
-
-            if momentum_warning and alert_cooldown_passed(symbol, tf, "momentum", cooldown):
-                await send_telegram_message(bot_token, chat_id, momentum_warning_msg(data))
-                logging.info(f"⚠️ Momentum Warning: {symbol} {tf}")
 
 
 async def main_loop():
