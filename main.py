@@ -13,73 +13,68 @@ from ta.trend import EMAIndicator, MACD
 from threading import Thread
 
 pairs = [
-    "SOLUSDT",    # Solana       — Blue Chip
-    "XRPUSDT",    # Ripple       — Blue Chip
-    "ADAUSDT",    # Cardano      — Mid Cap
-    "SUIUSDT",    # Sui          — Low Cap
-    "APTUSDT",    # Aptos        — Low Cap
-    "GALAUSDT",   # Gala         — Low Cap
-    "TRXUSDT",    # Tron         — Low Cap
-    "GRTUSDT",    # The Graph    — Low Cap
-    "SAHARAUSDT", # Sahara       — Low Cap¹
-    "NEWTUSDT",   # Newt         — Low Cap¹
-    "ZILUSDT"     # Zilliqa      — Low Cap
-]
-
+    "1INCHUSDT", "AAVEUSDT", "ACHUSDT", "ADAUSDT", "AGIXUSDT", "ALGOUSDT", "ALICEUSDT", "APTUSDT", "ARBUSDT",
+    "ARUSDT", "ATOMUSDT", "AVAXUSDT", "BANDUSDT", "BNBUSDT", "CELOUSDT", "CKBUSDT", "COTIUSDT", "CFXUSDT",
+    "CVCUSDT", "CTKUSDT", "CTSIUSDT", "DAIUSDT", "DIAUSDT", "DOGEUSDT", "DOTUSDT", "DYDXUSDT", "EGLDUSDT",
+    "ENSUSDT", "EOSUSDT", "ETHUSDT", "FETUSDT", "FILUSDT", "FLUXUSDT", "GALAUSDT", "GLMRUSDT", "GRTUSDT",
+    "HOTUSDT", "ICPUSDT", "ICXUSDT", "IDUSDT", "ILVUSDT", "INJUSDT", "JOEUSDT", "KAVAUSDT", "LINKUSDT",
+    "LITUSDT", "LPTUSDT", "LTCUSDT", "MANAUSDT", "MATICUSDT", "MIOTAUSDT", "MKRUSDT", "NEARUSDT", "OCEANUSDT",
+    "ONEUSDT", "ONTUSDT", "OPUSDT", "PHBUSDT", "QNTUSDT", "RENUSDT", "RLCUSDT", "RNDRUSDT", "ROSEUSDT",
+    "RLYUSDT", "SANDUSDT", "SFPUSDT", "SOLUSDT", "STMXUSDT", "STORJUSDT", "STXUSDT", "SUPERUSDT", "SUIUSDT",
+    "TAOUSDT", "TELUSDT", "TONUSDT", "TRXUSDT", "UNFIUSDT", "UTKUSDT", "VETUSDT", "VICUSDT", "XEMUSDT",
+    "XLMUSDT", "XMRUSDT", "XRPUSDT", "XTZUSDT", "YGGUSDT", "ZILUSDT", "SAHARAUSDT", "NEWTUSDT",
+    ]
 
 # === Timeframe-Specific Config ===
 TIMEFRAME_CONFIG = {
     "15m": {
-        "htf": "1h",
-        "volume_window": 8,
-        "cooldown": 15,
-        "confidence_weights": {
-            "htf_trend": 10,
-            "trend": 8,
-            "volume": 14,
-            "macd_hist": 14,
-            "stoch_crossover": 10,
-            "ema50": 6,
-            "divergence": 8
-        },
-        "tp_weights": {
-            "rsi_overbought": 18,
-            "stoch_overbought": 16,
-            "bb_hit": 15,
-            "macd_cross": 12,
-            "vol_weak": 14,
-            "rsi_div": 10,
-            "stoch_cross": 9,
-            "rejection_wick": 10,
-            "htf_bear": 6
-        },
-        "entry_threshold": 54,
-        "tp_threshold": 55,
-        "tsl": 0.06
+    "htf": "1h",
+    "volume_window": 8,
+    "cooldown": 15,
+    "confidence_weights": {
+        "htf_trend": 10,
+        "trend": 10,
+        "volume": 10,
+        "macd_hist": 15,
+        "stoch_crossover": 10,
+        "ema50": 10,
+        "divergence": 10
     },
+    "tp_weights": {
+        "rsi_overbought": 20,
+        "stoch_overbought": 15,
+        "bb_hit": 15,
+        "macd_cross": 10,
+        "vol_weak": 10,
+        "rsi_div": 10,
+        "stoch_cross": 10,
+        "rejection_wick": 5,
+        "htf_bear": 5,
+        "volume_confirmation": 15,
+    },
+    "entry_threshold": 65,
+    "tp_threshold": 60,
+    "tsl": 0.06  # Tighter for scalping
+},
     "30m": {
         "htf": "4h",
         "volume_window": 12,
         "cooldown": 30,
         "confidence_weights": {
-            "htf_trend": 16,
-            "trend": 10,
-            "volume": 15,
-            "macd_hist": 16,
-            "stoch_crossover": 11,
-            "ema50": 9,
-            "divergence": 13
+            "htf_trend": 15, "trend": 10, "volume": 15, "macd_hist": 20,
+            "stoch_crossover": 10, "ema50": 10, "divergence": 10
         },
         "tp_weights": {
             "rsi_overbought": 20,
             "stoch_overbought": 15,
-            "bb_hit": 18,
-            "macd_cross": 13,
-            "vol_weak": 12,
-            "rsi_div": 13,
+            "bb_hit": 20,
+            "macd_cross": 15,
+            "vol_weak": 10,
+            "rsi_div": 10,
             "stoch_cross": 10,
-            "rejection_wick": 11,
-            "htf_bear": 7
+            "rejection_wick": 10,
+            "htf_bear": 5,
+            "volume_confirmation": 15,
         },
         "momentum_weights": {
             "rsi_overbought": 20,
@@ -89,33 +84,29 @@ TIMEFRAME_CONFIG = {
             "volume_weak": 15
         },
         "momentum_threshold": 60,
-        "entry_threshold": 58,
-        "tp_threshold": 61,
-        "tsl": 0.08
+        "entry_threshold": 60,  # 🔒 Stronger filters for fewer but better 30m signals
+        "tp_threshold": 60,
+        "tsl": 0.08             # 🔄 Tight TSL for scalps
     },
     "4h": {
         "htf": "1d",
         "volume_window": 20,
         "cooldown": 60,
         "confidence_weights": {
-            "htf_trend": 28,
-            "trend": 16,
-            "volume": 12,
-            "macd_hist": 14,
-            "stoch_crossover": 9,
-            "ema50": 11,
-            "divergence": 20
+            "htf_trend": 25, "trend": 15, "volume": 15, "macd_hist": 15,
+            "stoch_crossover": 10, "ema50": 10, "divergence": 15
         },
         "tp_weights": {
             "rsi_overbought": 25,
             "stoch_overbought": 20,
             "bb_hit": 15,
-            "macd_cross": 14,
-            "vol_weak": 11,
+            "macd_cross": 15,
+            "vol_weak": 10,
             "rsi_div": 15,
             "stoch_cross": 10,
-            "rejection_wick": 10,
-            "htf_bear": 10
+            "rejection_wick": 5,
+            "htf_bear": 8,
+            "volume_confirmation": 15,
         },
         "momentum_weights": {
             "rsi_overbought": 25,
@@ -125,9 +116,9 @@ TIMEFRAME_CONFIG = {
             "volume_weak": 15
         },
         "momentum_threshold": 65,
-        "entry_threshold": 64,
-        "tp_threshold": 68,
-        "tsl": 0.18
+        "entry_threshold": 65,  # 🚀 Wait for more confluence on 4H
+        "tp_threshold": 65,
+        "tsl": 0.18             # 🧘‍♂️ Swing-safe TSL
     },
     "1d": {
         "htf": "1w",
@@ -146,7 +137,8 @@ TIMEFRAME_CONFIG = {
             "rsi_div": 20,
             "stoch_cross": 10,
             "rejection_wick": 10,
-            "htf_bear": 10
+            "htf_bear": 10,
+            "volume_confirmation": 15,
         },
         "momentum_weights": {
             "rsi_overbought": 30,
@@ -156,12 +148,11 @@ TIMEFRAME_CONFIG = {
             "volume_weak": 15
         },
         "momentum_threshold": 70,
-        "entry_threshold": 65,
+        "entry_threshold": 70,  # 🧠 Highest quality trades only
         "tp_threshold": 70,
-        "tsl": 0.30
+        "tsl": 0.30             # 🛡️ Strong trend safety net
     }
 }
-
 
 
 
@@ -244,29 +235,39 @@ def fetch_ohlcv(symbol, interval, limit=500):
 
 def get_max_confidence_score(interval):
     weights = TIMEFRAME_CONFIG[interval]["confidence_weights"]
-    return sum(weights.values())
+    static_bonuses = {
+        "bb_lower": 5,
+        "rsi_dynamic": 6,
+        "stoch_oversold": 5,
+        "macd_bullish": 8,
+        "no_suppression": 5,
+    }
+
+
+    penalties = {
+        "rsi_neutral": -10,   # neutral RSI zone
+        "tight_range":  -5    # tight range penalty
+    }
+    total = sum(weights.values()) + sum(static_bonuses.values()) + abs(sum(penalties.values()))
+    return total
+
+
 
 def is_suppressed(df):
-    if df.empty or len(df) < 220:
-        return True
+    if df.empty or len(df) < 60:
+        return False  # treat small data as “not suppressed”
 
-    try:
-        # Use Bollinger Bands with 200-period window and 2 std dev
-        bb = BollingerBands(close=df['close'], window=200, window_dev=2)
-        bb_width = bb.bollinger_hband() - bb.bollinger_lband()
+    from ta.volatility import BollingerBands
+    # Use a shorter BB window and a milder threshold
+    bb = BollingerBands(close=df['close'], window=50, window_dev=2)
+    bb_width = bb.bollinger_hband() - bb.bollinger_lband()
 
-        # Rolling mean and std of BB width over last 20 candles
-        rolling_mean = bb_width.rolling(window=20).mean()
-        rolling_std = bb_width.rolling(window=20).std()
+    rolling_mean = bb_width.rolling(window=10).mean()
+    rolling_std  = bb_width.rolling(window=10).std()
+    dynamic_threshold = rolling_mean.iloc[-1] - 0.5 * rolling_std.iloc[-1]
 
-        dynamic_threshold = rolling_mean.iloc[-1] - rolling_std.iloc[-1]
+    return bb_width.iloc[-1] < dynamic_threshold
 
-        # Suppressed if current BB width < dynamic threshold
-        return bb_width.iloc[-1] < dynamic_threshold
-
-    except Exception as e:
-        logging.warning(f"Bollinger suppression check error: {e}")
-        return True
 
 
 
@@ -283,26 +284,26 @@ def volume_spike(df, symbol, interval):
     window = TIMEFRAME_CONFIG[interval]["volume_window"]
     recent_vol = df['volume'].iloc[-window:]
 
-    # Default multiplier
-    mult = 1.5
+    # Looser default multiplier
+    mult = 1.2
 
-    # Use dynamic multiplier based on overall 24h quote volume
+    # Dynamic multiplier based on 24h volume
     global symbol_volumes
     vol_24h = symbol_volumes.get(symbol)
-
     if vol_24h is None:
-        return False  # or set a default like `mult = 1.3`
+        return False
 
     if vol_24h > 100_000_000:
-        mult = 2.0
+        mult = 1.4
     elif vol_24h > 50_000_000:
-        mult = 1.7
+        mult = 1.3
     elif vol_24h < 3_000_000:
         mult = 1.1
     else:
-        mult = 1.4
+        mult = 1.2
 
     return recent_vol.iloc[-1] > recent_vol.mean() + mult * recent_vol.std()
+
 
 
 def rsi_divergence(df):
@@ -392,7 +393,6 @@ def entry_msg(data):
 • {'✅' if not data['tight_range'] else '❌'} Range: {'Clear breakout potential' if not data['tight_range'] else 'Choppy sideways range'}
 
 
-
 🎯 Confidence Score: {data['confidence']}% — {confidence_tag(data['confidence'])}
 🛡️ Suggested TSL: {tsl_pct}%
 
@@ -460,7 +460,6 @@ def momentum_warning_msg(data):
 
 
 # === Analysis Logic ===
-
 def analyze(symbol, interval, tsl_percent=None):
     try:
         # Load config and fetch data
@@ -559,130 +558,83 @@ def analyze(symbol, interval, tsl_percent=None):
             df['high'].iloc[-1] - df['close'].iloc[-1]
             > 2 * abs(df['close'].iloc[-1] - df['open'].iloc[-1])
         )
-                
-        
-        # === Entry Confidence Scoring (with core signal check, less strict) ===
-        core_signals = [
-            htf_trend,
-            trend,
-            volume_spike_,
-            macd_hist_positive,
-            stoch_crossover
-        ]
-        core_true = sum(bool(x) for x in core_signals)
-        
-        confidence = 0
+
+        # === Confidence Scoring ===
         weights = config["confidence_weights"]
-        
-        if core_true < 2:
-            confidence = 0  # No alert unless at least 2 of 5 core are true
-        else:
-            # Major factors: Only 10% credit for false, full for true
-            confidence += weights.get("htf_trend", 0) if htf_trend else int(weights.get("htf_trend", 0) * 0.1)
-            confidence += weights.get("trend", 0) if trend else int(weights.get("trend", 0) * 0.1)
-            confidence += weights.get("volume", 0) if volume_spike_ else int(weights.get("volume", 0) * 0.1)
-            confidence += weights.get("macd_hist", 0) if macd_hist_positive else int(weights.get("macd_hist", 0) * 0.1)
-            confidence += weights.get("stoch_crossover", 0) if stoch_crossover else int(weights.get("stoch_crossover", 0) * 0.1)
-            confidence += weights.get("ema50", 0) if price > ema_50 else int(weights.get("ema50", 0) * 0.1)
-            # Additional: divergence, suppression, tight_range, rsi_neutral
-            if divergence:
-                confidence += max(5, int(get_max_confidence_score(interval) * 0.08))
-            if not suppressed:
-                confidence += int(get_max_confidence_score(interval) * 0.07)
-            else:
-                confidence -= int(get_max_confidence_score(interval) * 0.07)
-            if tight_range:
-                confidence -= int(get_max_confidence_score(interval) * 0.06)
-            if rsi_neutral:
-                confidence -= int(get_max_confidence_score(interval) * 0.05)
-        
-        confidence = max(0, min(confidence, get_max_confidence_score(interval)))
-        
+        confidence = 0
+        confidence += weights.get("htf_trend", 0) if htf_trend else 0
+        confidence += weights.get("trend", 0) if trend else 0
+        confidence += weights.get("volume", 0) if volume_spike_ else 0
+        confidence += weights.get("macd_hist", 0) if macd_hist_positive else 0
+        confidence += weights.get("stoch_crossover", 0) if stoch_crossover else 0
+        confidence += weights.get("ema50", 0) if price > ema_50 else 0
+        confidence += weights.get("divergence", 0) if divergence else 0
+        confidence += 5 if price <= bb_lower else 0  # BB bonus reduced
+        if rsi is not None and smoothed_rsi is not None:
+            if rsi < rsi_dynamic_threshold and smoothed_rsi < rsi_dynamic_threshold:
+                confidence += 6
+            elif rsi < rsi_dynamic_threshold:
+                confidence += 3
+            elif smoothed_rsi < rsi_dynamic_threshold:
+                confidence += 2
+            if price <= bb_lower and rsi < 30:
+                confidence += 3
+            confidence += 5 if stoch_k < 20 and stoch_d < 20 else 0  # Stoch oversold bonus reduced
+        confidence += 8 if macd_bullish else 0    # MACD bullish bonus reduced
+        confidence += 5 if not suppressed else 0  # Suppression bonus reduced
+        confidence -= 10 if rsi_neutral else 0
+        if tight_range and not volume_spike_:
+            confidence -= 5
+            
+        confidence = min(confidence, 100)
+
         max_score = get_max_confidence_score(interval)
-        logging.info(f"➡️ {symbol} {interval}: raw_conf={confidence}, max_score={max_score}")
         normalized_conf = round((confidence / max_score) * 100, 2)
-        
-        # === TP Confidence Scoring (less strict) ===
+
+
+        # === TP Confidence ===
         tp_weights = config["tp_weights"]
         tp_confidence = 0
-        tp_max_score = sum(tp_weights.values())
-        tp_signals = 0
-        
-        # RSI Overbought: full points >70, half points 67-70
-        if rsi:
-            if rsi > 70:
-                tp_confidence += tp_weights.get("rsi_overbought", 0)
-                tp_signals += 1
-            elif rsi > 67:
-                tp_confidence += tp_weights.get("rsi_overbought", 0) * 0.5
-        
-        # Stoch Overbought: full points both >80, half points 77-80
-        if stoch_k > 80 and stoch_d > 80:
-            tp_confidence += tp_weights.get("stoch_overbought", 0)
-            tp_signals += 1
-        elif stoch_k > 77 and stoch_d > 77:
-            tp_confidence += tp_weights.get("stoch_overbought", 0) * 0.5
-        
-        # BB upper hit: full points if above, half if within 0.5%
-        if price >= bb_upper:
-            tp_confidence += tp_weights.get("bb_hit", 0)
-            tp_signals += 1
-        elif price >= bb_upper * 0.995:
-            tp_confidence += tp_weights.get("bb_hit", 0) * 0.5
-        
-        # MACD cross: full points line < signal, half points within 3%
-        if macd_line is not None and macd_signal is not None:
-            if macd_line < macd_signal:
-                tp_confidence += tp_weights.get("macd_cross", 0)
-                tp_signals += 1
-            elif macd_line < macd_signal * 1.03:
-                tp_confidence += tp_weights.get("macd_cross", 0) * 0.5
-        
-        # Volume: full points if weakening, half if just below mean
-        if volume_weakening:
-            tp_confidence += tp_weights.get("vol_weak", 0)
-            tp_signals += 1
-        else:
-            recent_vol = df['volume'].iloc[-config["volume_window"]:]
-            if recent_vol.iloc[-1] < recent_vol.mean():
-                tp_confidence += tp_weights.get("vol_weak", 0) * 0.5
-        
-        # Bearish RSI div: full points if present
-        if bearish_rsi_div:
-            tp_confidence += tp_weights.get("rsi_div", 0)
-            tp_signals += 1
-        
-        # Stoch bear crossover: full points, half if rolling over
-        if stoch_bear_crossover:
-            tp_confidence += tp_weights.get("stoch_cross", 0)
-            tp_signals += 1
-        elif stoch_k > 70 and stoch_k < stoch_d:
-            tp_confidence += tp_weights.get("stoch_cross", 0) * 0.5
-        
-        # Rejection wick: full points if present
-        if rejection_wick:
-            tp_confidence += tp_weights.get("rejection_wick", 0)
-            tp_signals += 1
-        
-        # HTF trend: full points if bearish, penalty if bullish
-        if not htf_trend:
-            tp_confidence += tp_weights.get("htf_bear", 0)
-        else:
-            tp_confidence -= tp_weights.get("htf_bear", 0) * 0.6
-        
-        # Bonus: small reward for high confluence (3+ signals)
-        if tp_signals >= 3:
-            tp_confidence += min(6, round(tp_max_score * 0.04))
-        
-        # Extra: BB upper + RSI > 70 synergy
+        tp_confidence += (
+            tp_weights.get("rsi_overbought", 0) if rsi and rsi > 70 else 0
+        )
+        tp_confidence += (
+            tp_weights.get("stoch_overbought", 0)
+            if stoch_k > 80 and stoch_d > 80
+            else 0
+        )
+        tp_confidence += (
+            tp_weights.get("bb_hit", 0) if price >= bb_upper else 0
+        )
+        tp_confidence += (
+            tp_weights.get("macd_cross", 0) if macd_line < macd_signal else 0
+        )
+        tp_confidence += (
+            tp_weights.get("vol_weak", 0) if volume_weakening else 0
+        )
+        tp_confidence += (
+            tp_weights.get("rsi_div", 0) if bearish_rsi_div else 0
+        )
+        tp_confidence += (
+            tp_weights.get("stoch_cross", 0) if stoch_bear_crossover else 0
+        )
+        tp_confidence += (
+            tp_weights.get("rejection_wick", 0) if rejection_wick else 0
+        )
+        tp_confidence += (
+            tp_weights.get("htf_bear", 0) if not htf_trend else 0
+        )
         if price >= bb_upper and rsi and rsi > 70:
             tp_confidence += min(5, round((rsi - 70) * 0.5))
-        
-        tp_confidence = max(0, min(tp_confidence, tp_max_score))
+
+        tp_confidence += tp_weights.get("volume_confirmation", 0) if volume_spike_ else 0
+
+
+        tp_confidence = min(tp_confidence, 100)
+
+        tp_max_score = sum(tp_weights.values())
         tp_conf = round((tp_confidence / tp_max_score) * 100, 2)
         tp = tp_conf >= config["tp_threshold"]
-
-
 
         # === Momentum Warning ===
         momentum_score = 0
@@ -703,17 +655,6 @@ def analyze(symbol, interval, tsl_percent=None):
             round((momentum_score / momentum_max_score) * 100, 2)
             if momentum_max_score > 0
             else 0
-        )
-        fired = {
-            "htf_trend":      htf_trend,
-            "trend":          trend,
-            "volume":         volume_spike_,
-            "macd":           macd_hist_positive,
-            "stoch":          stoch_crossover
-        }
-        logging.info(
-            f"✅ CONDITIONS FIRED for {symbol} {interval}: "
-            f"{', '.join(k for k,v in fired.items() if v)}"
         )
 
         return {
