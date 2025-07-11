@@ -103,7 +103,7 @@ TIMEFRAME_CONFIG = {
         "volume_window": 20,
         "cooldown": 60,
         "confidence_weights": {
-            "htf_trend": 18,
+            "htf_trend": 8,
             "trend": 14,
             "volume": 12,
             "macd_hist": 16,
@@ -121,7 +121,7 @@ TIMEFRAME_CONFIG = {
             "stoch_cross": 6,
             "rejection_wick": 4
         },
-        "entry_threshold": 66,
+        "entry_threshold": 50,
         "tp_threshold": 60,
         "tsl": 0.15
     },
@@ -252,7 +252,7 @@ def get_max_confidence_score(interval):
 
 
     penalties = {
-        "rsi_neutral": -10,   # neutral RSI zone
+        "rsi_neutral": -5,   # neutral RSI zone
         "tight_range":  -5    # tight range penalty
     }
     total = sum(weights.values()) + sum(static_bonuses.values()) + abs(sum(penalties.values()))
@@ -301,17 +301,17 @@ def volume_spike(df, symbol, interval):
         return False
 
     if vol_24h > 100_000_000:
-        mult = 1.4
-    elif vol_24h > 50_000_000:
         mult = 1.3
-    elif vol_24h < 3_000_000:
-        mult = 1.1
-    else:
+    elif vol_24h > 50_000_000:
         mult = 1.2
+    elif vol_24h < 3_000_000:
+        mult = 1.0
+    else:
+        mult = 1.1
 
     current_vol = recent_vol.iloc[-1]
     avg_vol = recent_vol.mean()
-    sustained = all(v > avg_vol for v in recent_vol.iloc[-3:])
+    sustained = sum(v > avg_vol for v in recent_vol.iloc[-3:]) >= 2
     return (current_vol > avg_vol + mult * recent_vol.std()) and sustained
 
 
@@ -605,6 +605,16 @@ def analyze(symbol, interval, tsl_percent=None):
         if tight_range and not volume_spike_:
             confidence -= 5
 
+        # === Mean reversion reversal entry bonus ===
+        # Triggers only if: RSI very low, Stoch deeply oversold, *and* current candle is a reversal (close > open)
+        if (
+            rsi is not None and stoch_k is not None and stoch_d is not None
+            and rsi < 22 and stoch_k < 20 and stoch_d < 20
+            and price > df['open'].iloc[-1]   # Reversal candle!
+            and volume_spike_
+        ):
+            confidence += 14   # You can tune this value
+
         confidence = min(confidence, 100)
 
         max_score = get_max_confidence_score(interval)
@@ -716,6 +726,7 @@ def analyze(symbol, interval, tsl_percent=None):
     except Exception as e:
         logging.error(f"Analysis error {symbol} {interval}: {e}")
         return None
+
 
 
 
