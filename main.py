@@ -12,6 +12,20 @@ from ta.volatility import BollingerBands
 from ta.trend import EMAIndicator, MACD
 from threading import Thread
 
+BOT_TOKENS = {
+    "15m": os.getenv("TELEGRAM_BOT_TOKEN_15M"),
+    "30m": os.getenv("TELEGRAM_BOT_TOKEN_30M"),
+    "4h": os.getenv("TELEGRAM_BOT_TOKEN_4H"),
+    "1d": os.getenv("TELEGRAM_BOT_TOKEN_1D"),
+}
+CHAT_IDS = {
+    "15m": os.getenv("TELEGRAM_CHAT_ID_15M"),
+    "30m": os.getenv("TELEGRAM_CHAT_ID_30M"),
+    "4h": os.getenv("TELEGRAM_CHAT_ID_4H"),
+    "1d": os.getenv("TELEGRAM_CHAT_ID_1D"),
+}
+
+
 pairs = [
     "1INCHUSDT", "AAVEUSDT", "ACHUSDT", "ADAUSDT", "AGIXUSDT", "ALGOUSDT", "ALICEUSDT", "APTUSDT",
     "ARBUSDT", "ARUSDT", "ATOMUSDT", "AVAXUSDT", "BANDUSDT", "BNBUSDT", "CELOUSDT", "CFXUSDT",
@@ -182,17 +196,28 @@ def test_alert():
     if request.args.get('key') != "asdf":
         return "Unauthorized", 401
 
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    results = []
+    for tf in ["15m", "30m", "4h", "1d"]:
+        bot_token = BOT_TOKENS.get(tf)
+        chat_id = CHAT_IDS.get(tf)
+        if not bot_token or not chat_id:
+            results.append(f"{tf}: ❌ Missing environment variables")
+            continue
 
-    if not bot_token or not chat_id:
-        return "❌ Missing Telegram environment variables", 500
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        data = {
+            'chat_id': chat_id,
+            'text': f"✅ Test alert from your Crypto Alert Bot! ({tf} bot)",
+            'parse_mode': 'Markdown'
+        }
+        resp = requests.post(url, data=data)
+        if resp.status_code == 200:
+            results.append(f"{tf}: ✅ Test alert sent!")
+        else:
+            results.append(f"{tf}: ❌ Error: {resp.text}")
 
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {'chat_id': chat_id, 'text': "✅ Test alert from your Crypto Alert Bot!", 'parse_mode': 'Markdown'}
+    return "<br>".join(results), 200
 
-    resp = requests.post(url, data=data)
-    return "Test alert sent!" if resp.status_code == 200 else f"Error: {resp.text}", resp.status_code
 
 # === Globals ===
 alert_tracker = {}
@@ -710,13 +735,18 @@ async def scan_symbols():
         "4h": TIMEFRAME_CONFIG["4h"]["cooldown"],
         "1d": TIMEFRAME_CONFIG["1d"]["cooldown"]
     }
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-    for symbol in pairs:              # ← 4 spaces indent
-        for tf, cooldown in intervals.items():  # ← 8 spaces indent
+    for symbol in pairs:
+        for tf, cooldown in intervals.items():
             data = analyze(symbol, tf)
             if not data:
+                continue
+
+            # Pick the correct bot token and chat id for this timeframe
+            bot_token = BOT_TOKENS.get(tf)
+            chat_id = CHAT_IDS.get(tf)
+            if not bot_token or not chat_id:
+                logging.error(f"Missing bot token or chat id for {tf}")
                 continue
 
             logging.info(
@@ -743,6 +773,7 @@ async def scan_symbols():
             if momentum_warning and alert_cooldown_passed(symbol, tf, "momentum", cooldown):
                 await send_telegram_message(bot_token, chat_id, momentum_warning_msg(data))
                 logging.info(f"⚠️ Momentum Warning: {symbol} {tf}")
+
 
 async def main_loop():
     loop_counter = 0
