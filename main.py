@@ -405,6 +405,7 @@ def entry_msg(data):
 📂 Market Cap Category: *{mcap}*
 
 📈 Reasons:
+📈 Reasons:
 • {'✅' if data['macd_bullish'] else '❌'} MACD Histogram: {'Green & rising' if data['macd_bullish'] else 'Weak or flat'}
 • {'✅' if data['rsi'] < data['oversold_threshold'] else '❌'} RSI: {'Rebounding from oversold (RSI = ' + str(data['rsi']) + f' < {data["oversold_threshold"]})' if data['rsi'] < data['oversold_threshold'] else 'Neutral/High (RSI = ' + str(data['rsi']) + ')'}
 • {'✅' if data['stoch_k'] < 30 and data['stoch_d'] < 30 else '❌'} Stochastic Oversold (K: {data['stoch_k']}, D: {data['stoch_d']})
@@ -418,6 +419,8 @@ def entry_msg(data):
 • {'✅' if not data['rsi_neutral'] else '❌'} RSI Zone: {'Strong zone' if not data['rsi_neutral'] else 'Neutral RSI (40–60)'}
 • {'✅' if not data['tight_range'] else '❌'} Range: {'Clear breakout potential' if not data['tight_range'] else 'Choppy sideways range'}
 • {'✅' if data['btc_bullish'] else '❌'} BTC Trend Filter: {'BTC Bullish' if data['btc_bullish'] else 'BTC Bearish — be cautious'}
+{f"• {data['reversal_reason']}" if data.get('reversal_reason') else ""}
+
 
 
 🎯 Confidence Score: {data['confidence']}% — {confidence_tag(data['confidence'])}
@@ -568,6 +571,23 @@ def analyze(symbol, interval, tsl_percent=None):
             df['high'].iloc[-1] - df['close'].iloc[-1]
             > 2 * abs(df['close'].iloc[-1] - df['open'].iloc[-1])
         )
+        # --- Sharp Reversal Detection ---
+        sharp_reversal = (
+            rsi is not None and stoch_k is not None and stoch_d is not None
+            and rsi < 22 and stoch_k < 20 and stoch_d < 20
+            and price > df['open'].iloc[-1]
+            and volume_spike_
+            and (df['low'].iloc[-1] < df['low'].iloc[-2])  # fresh low
+            and (df['high'].iloc[-1] - df['close'].iloc[-1] > abs(df['open'].iloc[-1] - df['close'].iloc[-1]) * 1.5)  # strong wick
+        )
+        
+        # --- Slow Reversal Detection ---
+        slow_reversal = (
+            rsi is not None and stoch_k is not None and stoch_d is not None
+            and rsi < 28 and stoch_k < 25 and stoch_d < 25
+            and price > df['open'].iloc[-1]
+            and not sharp_reversal
+        )
 
         # === Confidence Scoring ===
         weights = config["confidence_weights"]
@@ -604,6 +624,17 @@ def analyze(symbol, interval, tsl_percent=None):
         confidence -= 10 if rsi_neutral else 0
         if tight_range and not volume_spike_:
             confidence -= 5
+
+        # === Institutional Bottom Signal Bonuses ===
+        if sharp_reversal:
+            confidence += 17
+            reversal_reason = "🟢 Institutional Sharp Reversal: Wick + Volume"
+        elif slow_reversal:
+            confidence += 10
+            reversal_reason = "🟡 Slow Smart Money Accumulation"
+        else:
+            reversal_reason = None
+
 
         # === Mean reversion reversal entry bonus ===
         # Triggers only if: RSI very low, Stoch deeply oversold, *and* current candle is a reversal (close > open)
@@ -721,6 +752,7 @@ def analyze(symbol, interval, tsl_percent=None):
             'btc_bullish': btc_bullish,
             'oversold_threshold': oversold_threshold,
             'overbought_threshold': overbought_threshold,
+            'reversal_reason': reversal_reason,
         }
 
     except Exception as e:
