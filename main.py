@@ -64,9 +64,8 @@ TIMEFRAME_CONFIG = {
             "vol_weak": 13,
             "rsi_div": 10,
             "stoch_cross": 7,
-            "rejection_wick": 5,
-            "htf_bear": 5,
-            "volume_confirmation": 15
+            "rejection_wick": 5
+        
         },
         "entry_threshold": 60,
         "tp_threshold": 55,
@@ -93,9 +92,7 @@ TIMEFRAME_CONFIG = {
             "vol_weak": 13,
             "rsi_div": 8,
             "stoch_cross": 8,
-            "rejection_wick": 6,
-            "htf_bear": 6,
-            "volume_confirmation": 12
+            "rejection_wick": 6
         },
         "entry_threshold": 62,
         "tp_threshold": 58,
@@ -122,9 +119,7 @@ TIMEFRAME_CONFIG = {
             "vol_weak": 10,
             "rsi_div": 9,
             "stoch_cross": 6,
-            "rejection_wick": 4,
-            "htf_bear": 10,
-            "volume_confirmation": 12
+            "rejection_wick": 4
         },
         "entry_threshold": 66,
         "tp_threshold": 60,
@@ -151,9 +146,7 @@ TIMEFRAME_CONFIG = {
             "vol_weak": 6,
             "rsi_div": 13,
             "stoch_cross": 6,
-            "rejection_wick": 6,
-            "htf_bear": 12,
-            "volume_confirmation": 12
+            "rejection_wick": 6
         },
         "entry_threshold": 70,
         "tp_threshold": 65,
@@ -320,14 +313,21 @@ def volume_spike(df, symbol, interval):
 
 
 
-def rsi_divergence(df):
+def rsi_divergence(df, lookback=20, points=3):
+    if len(df) < lookback + 10:
+        return False
     try:
-        rsi = RSIIndicator(df['close']).rsi().iloc[-15:]
-        lows = df['low'].iloc[-15:]
-        idx = lows.nsmallest(2).index.tolist()
-        if len(idx) < 2: return False
-        return lows.loc[idx[0]] > lows.loc[idx[1]] and rsi.loc[idx[0]] < rsi.loc[idx[1]]
-    except: return False
+        closes = df['close'].iloc[-lookback:]
+        rsis = RSIIndicator(df['close']).rsi().iloc[-lookback:]
+        low_points = closes.nsmallest(points).index
+        if len(low_points) < points:
+            return False
+        price_lows = closes.loc[low_points]
+        rsi_lows = rsis.loc[low_points]
+        return (price_lows.is_monotonic_increasing and rsi_lows.is_monotonic_decreasing)
+    except:
+        return False
+
 
 def get_time():
     tz = pytz.timezone("Asia/Kolkata")
@@ -348,6 +348,14 @@ def categorize_by_mcap(symbol):
     elif symbol in ['AVAXUSDT','DOGEUSDT','ADAUSDT','MATICUSDT','DOTUSDT','LINKUSDT','LTCUSDT']:
         return "Mid Cap"
     return "Low Cap"
+
+def get_btc_trend(interval):
+    btc_df = fetch_ohlcv("BTCUSDT", interval)
+    if not btc_df.empty and len(btc_df) > 50:
+        # Compare current price to last 50-candle mean
+        return btc_df['close'].iloc[-1] > btc_df['close'].iloc[-50:].mean()
+    return True  # Assume bullish if data missing
+
 
 # === Telegram Messaging ===
 async def send_telegram_message(bot_token, chat_id, message):
@@ -405,6 +413,7 @@ def entry_msg(data):
 • {'✅' if data['ema_50'] and data['price'] > data['ema_50'] else '❌'} EMA 50: {'Price above EMA 50' if data['price'] > data['ema_50'] else 'Below EMA 50'}
 • {'✅' if not data['rsi_neutral'] else '❌'} RSI Zone: {'Strong zone' if not data['rsi_neutral'] else 'Neutral RSI (40–60)'}
 • {'✅' if not data['tight_range'] else '❌'} Range: {'Clear breakout potential' if not data['tight_range'] else 'Choppy sideways range'}
+• {'✅' if data['btc_bullish'] else '❌'} BTC Trend Filter: {'BTC Bullish' if data['btc_bullish'] else 'BTC Bearish — be cautious'}
 
 
 🎯 Confidence Score: {data['confidence']}% — {confidence_tag(data['confidence'])}
@@ -579,6 +588,9 @@ def analyze(symbol, interval, tsl_percent=None):
             
         confidence = min(confidence, 100)
 
+        if not htf_trend:
+            confidence *= 0.7
+            
         max_score = get_max_confidence_score(interval)
         normalized_conf = round((confidence / max_score) * 100, 2)
 
@@ -612,13 +624,12 @@ def analyze(symbol, interval, tsl_percent=None):
         tp_confidence += (
             tp_weights.get("rejection_wick", 0) if rejection_wick else 0
         )
-        tp_confidence += (
-            tp_weights.get("htf_bear", 0) if not htf_trend else 0
-        )
+        
         if price >= bb_upper and rsi and rsi > 70:
             tp_confidence += min(5, round((rsi - 70) * 0.5))
 
-        tp_confidence += tp_weights.get("volume_confirmation", 0) if volume_spike_ else 0
+        if volume_spike_:
+            tp_confidence -= 15
 
 
         tp_confidence = min(tp_confidence, 100)
@@ -647,7 +658,8 @@ def analyze(symbol, interval, tsl_percent=None):
             if momentum_max_score > 0
             else 0
         )
-
+        btc_bullish = get_btc_trend(interval)
+        
         return {
             'symbol': symbol,
             'interval': interval,
@@ -682,6 +694,7 @@ def analyze(symbol, interval, tsl_percent=None):
             'rejection_wick': rejection_wick,
             'rsi_neutral': rsi_neutral,
             'tight_range': tight_range,
+            'btc_bullish': btc_bullish,
         }
 
     except Exception as e:
