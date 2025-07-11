@@ -309,7 +309,11 @@ def volume_spike(df, symbol, interval):
     else:
         mult = 1.2
 
-    return recent_vol.iloc[-1] > recent_vol.mean() + mult * recent_vol.std()
+    current_vol = recent_vol.iloc[-1]
+    avg_vol = recent_vol.mean()
+    sustained = all(v > avg_vol for v in recent_vol.iloc[-3:])
+    return (current_vol > avg_vol + mult * recent_vol.std()) and sustained
+
 
 
 
@@ -402,7 +406,7 @@ def entry_msg(data):
 
 📈 Reasons:
 • {'✅' if data['macd_bullish'] else '❌'} MACD Histogram: {'Green & rising' if data['macd_bullish'] else 'Weak or flat'}
-• {'✅' if data['rsi'] < 35 else '❌'} RSI: {'Rebounding from oversold (RSI = ' + str(data['rsi']) + ')' if data['rsi'] < 35 else 'Neutral/High (RSI = ' + str(data['rsi']) + ')'}
+• {'✅' if data['rsi'] < data['oversold_threshold'] else '❌'} RSI: {'Rebounding from oversold (RSI = ' + str(data['rsi']) + f' < {data["oversold_threshold"]})' if data['rsi'] < data['oversold_threshold'] else 'Neutral/High (RSI = ' + str(data['rsi']) + ')'}
 • {'✅' if data['stoch_k'] < 30 and data['stoch_d'] < 30 else '❌'} Stochastic Oversold (K: {data['stoch_k']}, D: {data['stoch_d']})
 • {'✅' if data['volume_spike'] else '❌'} Volume Spike: Bullish momentum detected
 • {'✅' if data['htf_trend'] else '❌'} HTF Trend ({htf_label}): {'Bullish' if data['htf_trend'] else 'Bearish'}
@@ -440,7 +444,7 @@ def tp_msg(data):
 
 📉 Reasons:
 • {'✅' if data['macd_line'] < data['macd_signal'] else '❌'} MACD Histogram: {'Turning red' if data['macd_line'] < data['macd_signal'] else 'Still bullish'}
-• {'✅' if data['rsi'] > 70 else '❌'} RSI Overbought (RSI = {data['rsi']})
+• {'✅' if data['rsi'] > data['overbought_threshold'] else '❌'} RSI Overbought (RSI = {data['rsi']} > {data['overbought_threshold']})
 • {'✅' if data['stoch_k'] > 80 and data['stoch_d'] > 80 else '❌'} Stochastic Overbought (K: {data['stoch_k']}, D: {data['stoch_d']})
 • {'✅' if data['volume_weakening'] else '❌'} Volume Weakening: Momentum fading
 • {'✅' if data['price'] >= data['bb_upper'] else '❌'} Resistance Zone (Upper BB hit)
@@ -520,6 +524,12 @@ def analyze(symbol, interval, tsl_percent=None):
         # Other checks
         trend = check_trend(symbol, interval)
         htf_trend = check_trend(symbol, config["htf"])
+        strong_uptrend = htf_trend
+        strong_downtrend = not htf_trend
+
+        overbought_threshold = 65 if strong_uptrend else 75
+        oversold_threshold = 35 if strong_downtrend else 25
+
         suppressed = is_suppressed(df)
         volume_spike_ = volume_spike(df, symbol, interval)
         volume_weakening = not volume_spike_
@@ -570,6 +580,7 @@ def analyze(symbol, interval, tsl_percent=None):
         confidence += weights.get("ema50", 0) if price > ema_50 else 0
         confidence += weights.get("divergence", 0) if divergence else 0
         confidence += 5 if price <= bb_lower else 0  # BB bonus reduced
+
         if rsi is not None and smoothed_rsi is not None:
             if rsi < rsi_dynamic_threshold and smoothed_rsi < rsi_dynamic_threshold:
                 confidence += 6
@@ -577,29 +588,33 @@ def analyze(symbol, interval, tsl_percent=None):
                 confidence += 3
             elif smoothed_rsi < rsi_dynamic_threshold:
                 confidence += 2
-            if price <= bb_lower and rsi < 30:
-                confidence += 3
+
+            # --- NEW: dynamic RSI oversold bonus ---
+            if rsi < oversold_threshold:
+                confidence += 4   # <<--- You can adjust this bonus value!
+
+            # --- UPDATED: BB + dynamic RSI threshold ---
+            if price <= bb_lower and rsi < oversold_threshold:
+                confidence += 3   # <<--- Same as before, just dynamic now
+
             confidence += 5 if stoch_k < 20 and stoch_d < 20 else 0  # Stoch oversold bonus reduced
+
         confidence += 8 if macd_bullish else 0    # MACD bullish bonus reduced
         confidence += 5 if not suppressed else 0  # Suppression bonus reduced
         confidence -= 10 if rsi_neutral else 0
         if tight_range and not volume_spike_:
             confidence -= 5
-            
+
         confidence = min(confidence, 100)
 
-        if not htf_trend:
-            confidence *= 0.7
-            
         max_score = get_max_confidence_score(interval)
         normalized_conf = round((confidence / max_score) * 100, 2)
-
 
         # === TP Confidence ===
         tp_weights = config["tp_weights"]
         tp_confidence = 0
         tp_confidence += (
-            tp_weights.get("rsi_overbought", 0) if rsi and rsi > 70 else 0
+            tp_weights.get("rsi_overbought", 0) if rsi and rsi > overbought_threshold else 0
         )
         tp_confidence += (
             tp_weights.get("stoch_overbought", 0)
@@ -624,13 +639,12 @@ def analyze(symbol, interval, tsl_percent=None):
         tp_confidence += (
             tp_weights.get("rejection_wick", 0) if rejection_wick else 0
         )
-        
-        if price >= bb_upper and rsi and rsi > 70:
-            tp_confidence += min(5, round((rsi - 70) * 0.5))
+
+        if price >= bb_upper and rsi and rsi > overbought_threshold:
+            tp_confidence += min(5, round((rsi - overbought_threshold) * 0.5))
 
         if volume_spike_:
             tp_confidence -= 15
-
 
         tp_confidence = min(tp_confidence, 100)
 
@@ -659,7 +673,7 @@ def analyze(symbol, interval, tsl_percent=None):
             else 0
         )
         btc_bullish = get_btc_trend(interval)
-        
+
         return {
             'symbol': symbol,
             'interval': interval,
@@ -695,11 +709,14 @@ def analyze(symbol, interval, tsl_percent=None):
             'rsi_neutral': rsi_neutral,
             'tight_range': tight_range,
             'btc_bullish': btc_bullish,
+            'oversold_threshold': oversold_threshold,
+            'overbought_threshold': overbought_threshold,
         }
 
     except Exception as e:
         logging.error(f"Analysis error {symbol} {interval}: {e}")
         return None
+
 
 
 # === Bot Loop ===
