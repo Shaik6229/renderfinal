@@ -517,12 +517,16 @@ def analyze(symbol, interval, tsl_percent=None):
             stoch.stoch().iloc[-2] > stoch.stoch_signal().iloc[-2]
             and stoch.stoch().iloc[-1] < stoch.stoch_signal().iloc[-1]
         )
+        price = df['close'].iloc[-1]
+        # --- PATCH: Calculate bounce % from recent 10-candle low ---
+        recent_low = df['low'].iloc[-10:].min()
+        bounce_pct = ((price - recent_low) / recent_low) * 100 if recent_low > 0 else 0
+
 
         # === Bollinger Bands ===
         bb = BollingerBands(df['close'], window=200, window_dev=2)
         bb_upper = bb.bollinger_hband().iloc[-1]
         bb_lower = bb.bollinger_lband().iloc[-1]
-        price = df['close'].iloc[-1]
 
         # Other checks
         trend = check_trend(symbol, interval)
@@ -651,6 +655,20 @@ def analyze(symbol, interval, tsl_percent=None):
         max_score = get_max_confidence_score(interval)
         normalized_conf = round((confidence / max_score) * 100, 2)
 
+        # --- STRICT 4H DIP ENTRY PATCH ---
+        strict_4h_entry = False
+        if interval == "4h":
+            strict_4h_entry = (
+                rsi is not None and stoch_k is not None and stoch_d is not None
+                and rsi < 23
+                and stoch_k < 14 and stoch_d < 20
+                and volume_spike_
+                and bounce_pct >= 10
+            )
+            if strict_4h_entry:
+                normalized_conf = 95  # Make sure alert always triggers if strict 4H dip found
+
+
         # === TP Confidence ===
         tp_weights = config["tp_weights"]
         tp_confidence = 0
@@ -741,7 +759,7 @@ def analyze(symbol, interval, tsl_percent=None):
             'macd_hist': round(macd_hist, 4) if macd_hist is not None else None,
             'macd_bullish': macd_bullish,
             'macd_hist_positive': macd_hist_positive,
-            'entry': normalized_conf >= config.get("entry_threshold", 50),
+            'entry': (strict_4h_entry if interval == "4h" else (normalized_conf >= config.get("entry_threshold", 50))),
             'tp': tp,
             'tp_conf': tp_conf,
             'bearish_rsi_div': bearish_rsi_div,
