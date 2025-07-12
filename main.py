@@ -44,56 +44,57 @@ TIMEFRAME_CONFIG = {
         "volume_window": 20,
         "cooldown": 60,
         "confidence_weights": {
-            "htf_trend": 8,
-            "trend": 14,
-            "volume": 12,
-            "macd_hist": 16,
-            "stoch_crossover": 9,
-            "ema50": 10,
-            "divergence": 11
+            "htf_trend": 18,      # Trend is king on 4H
+            "trend": 12,          # Price above EMA50 (strong)
+            "volume": 14,         # Entry on strong volume, more important on 4H
+            "macd_hist": 15,      # Momentum flip
+            "stoch_crossover": 6, # Helpful but not critical
+            "ema50": 8,           # Additional trend filter
+            "divergence": 11      # Nice to have, not always present
         },
         "tp_weights": {
-            "rsi_overbought": 24,
-            "stoch_overbought": 15,
-            "bb_hit": 15,
-            "macd_cross": 13,
-            "vol_weak": 10,
-            "rsi_div": 9,
-            "stoch_cross": 6,
-            "rejection_wick": 4
+            "rsi_overbought": 18,
+            "stoch_overbought": 8,
+            "bb_hit": 16,
+            "macd_cross": 16,
+            "vol_weak": 7,
+            "rsi_div": 13,
+            "stoch_cross": 7,
+            "rejection_wick": 10
         },
-        "entry_threshold": 50,
-        "tp_threshold": 60,
-        "tsl": 0.15
+        "entry_threshold": 60,
+        "tp_threshold": 65,
+        "tsl": 0.16
     },
     "1d": {
         "htf": "1w",
         "volume_window": 30,
         "cooldown": 180,
         "confidence_weights": {
-            "htf_trend": 24,
-            "trend": 18,
-            "volume": 7,
+            "htf_trend": 22,      # Trend is even more important on 1D
+            "trend": 13,
+            "volume": 10,         # Lower on 1D, less false signals from volume
             "macd_hist": 16,
-            "stoch_crossover": 7,
-            "ema50": 13,
-            "divergence": 15
+            "stoch_crossover": 5,
+            "ema50": 12,
+            "divergence": 14
         },
         "tp_weights": {
-            "rsi_overbought": 24,
-            "stoch_overbought": 10,
-            "bb_hit": 19,
-            "macd_cross": 12,
+            "rsi_overbought": 22,
+            "stoch_overbought": 7,
+            "bb_hit": 17,
+            "macd_cross": 18,
             "vol_weak": 6,
-            "rsi_div": 13,
+            "rsi_div": 14,
             "stoch_cross": 6,
-            "rejection_wick": 6
+            "rejection_wick": 10
         },
-        "entry_threshold": 70,
-        "tp_threshold": 65,
-        "tsl": 0.24
+        "entry_threshold": 65,
+        "tp_threshold": 70,
+        "tsl": 0.22
     }
 }
+
 
 
 # === Logging ===
@@ -182,22 +183,28 @@ def fetch_ohlcv(symbol, interval, limit=500):
 
 
 def get_max_confidence_score(interval):
+    """
+    Sums only the realistic max score for normalization: main weights, standard bonuses,
+    and only one rare bonus at a time. Avoids overinflating the denominator.
+    """
     weights = TIMEFRAME_CONFIG[interval]["confidence_weights"]
-    static_bonuses = {
-        "bb_lower": 5,
-        "rsi_dynamic": 6,
-        "stoch_oversold": 5,
-        "macd_bullish": 8,
-        "no_suppression": 5,
+    # Most likely bonuses for a strong real setup:
+    likely_bonuses = {
+        "bb_lower": 5,         # Entry at lower BB (typical)
+        "rsi_dynamic": 6,      # RSI under dynamic threshold (common)
+        "stoch_oversold": 5,   # Deep Stoch (often overlaps with above)
+        "macd_bullish": 8,     # MACD line > signal (standard momentum bonus)
+        "no_suppression": 5,   # Not suppressed
+        "sharp_reversal": 15   # Only one rare bonus at a time!
     }
-
-
     penalties = {
-        "rsi_neutral": -5,   # neutral RSI zone
-        "tight_range":  -5    # tight range penalty
+        "rsi_neutral": -5,
+        "tight_range": -5
     }
-    total = sum(weights.values()) + sum(static_bonuses.values()) + abs(sum(penalties.values()))
+    # Add main weights + standard bonuses (exclude all rare bonuses together)
+    total = sum(weights.values()) + sum(list(likely_bonuses.values())[:-1]) + max(likely_bonuses["sharp_reversal"], 0) + abs(sum(penalties.values()))
     return total
+
 
 
 
