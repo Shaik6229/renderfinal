@@ -13,14 +13,10 @@ from ta.trend import EMAIndicator, MACD
 from threading import Thread
 
 BOT_TOKENS = {
-    "15m": os.getenv("TELEGRAM_BOT_TOKEN_15M"),
-    "30m": os.getenv("TELEGRAM_BOT_TOKEN_30M"),
     "4h": os.getenv("TELEGRAM_BOT_TOKEN_4H"),
     "1d": os.getenv("TELEGRAM_BOT_TOKEN_1D"),
 }
 CHAT_IDS = {
-    "15m": os.getenv("TELEGRAM_CHAT_ID_15M"),
-    "30m": os.getenv("TELEGRAM_CHAT_ID_30M"),
     "4h": os.getenv("TELEGRAM_CHAT_ID_4H"),
     "1d": os.getenv("TELEGRAM_CHAT_ID_1D"),
 }
@@ -43,60 +39,6 @@ pairs = [
 
 # === Timeframe-Specific Config ===
 TIMEFRAME_CONFIG = {
-    "15m": {
-        "htf": "1h",
-        "volume_window": 8,
-        "cooldown": 15,
-        "confidence_weights": {
-            "htf_trend": 7,
-            "trend": 8,
-            "volume": 18,
-            "macd_hist": 15,
-            "stoch_crossover": 12,
-            "ema50": 10,
-            "divergence": 7
-        },
-        "tp_weights": {
-            "rsi_overbought": 17,
-            "stoch_overbought": 15,
-            "bb_hit": 13,
-            "macd_cross": 10,
-            "vol_weak": 13,
-            "rsi_div": 10,
-            "stoch_cross": 7,
-            "rejection_wick": 5
-        
-        },
-        "entry_threshold": 60,
-        "tp_threshold": 55,
-        "tsl": 0.07
-    },
-    "30m": {
-        "htf": "4h",
-        "volume_window": 12,
-        "cooldown": 30,
-        "confidence_weights": {
-            "htf_trend": 10,
-            "trend": 10,
-            "volume": 15,
-            "macd_hist": 17,
-            "stoch_crossover": 10,
-            "ema50": 10,
-            "divergence": 8
-        },
-        "tp_weights": {
-            "rsi_overbought": 20,
-            "stoch_overbought": 13,
-            "bb_hit": 13,
-            "macd_cross": 13,
-            "vol_weak": 13,
-            "rsi_div": 8,
-            "stoch_cross": 8,
-            "rejection_wick": 6
-        },
-        "entry_threshold": 62,
-        "tp_threshold": 58,
-        "tsl": 0.09
     },
     "4h": {
         "htf": "1d",
@@ -177,7 +119,7 @@ def test_alert():
         return "Unauthorized", 401
 
     results = []
-    for tf in ["15m", "30m", "4h", "1d"]:
+    for tf in ["4h", "1d"]:
         bot_token = BOT_TOKENS.get(tf)
         chat_id = CHAT_IDS.get(tf)
         if not bot_token or not chat_id:
