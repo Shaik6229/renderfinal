@@ -39,7 +39,6 @@ pairs = [
 
 # === Timeframe-Specific Config ===
 TIMEFRAME_CONFIG = {
-    },
     "4h": {
         "htf": "1d",
         "volume_window": 20,
